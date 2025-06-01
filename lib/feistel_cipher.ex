@@ -1,7 +1,7 @@
 defmodule FeistelCipher do
   @moduledoc false
 
-  def key_for_table(table) do
+  def table_seed(table) do
     <<key::31, _::481>> = :crypto.hash(:sha512, table)
     key
   end
@@ -11,12 +11,10 @@ defmodule FeistelCipher do
   end
 
   def with_defaults(opts) do
-    opts = Enum.into(opts, %{prefix: default_prefix()})
+    opts = Enum.into(opts, %{prefix: default_prefix(), seed: default_seed()})
 
     opts
     |> Map.put_new(:create_schema, opts.prefix != default_prefix())
-    |> Map.put_new(:xor, default_xor())
-    |> Map.put_new(:mul, default_mul())
     |> Map.put(:quoted_prefix, inspect(opts.prefix))
     |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
   end
@@ -25,11 +23,7 @@ defmodule FeistelCipher do
     "public"
   end
 
-  def default_xor do
+  def default_seed do
     1_076_943_109
-  end
-
-  def default_mul do
-    1_552_717_019
   end
 end
