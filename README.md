@@ -21,7 +21,7 @@ mix igniter.install feistel_cipher
     ```elixir
     def deps do
       [
-        {:feistel_cipher, "~> 0.1.0"}
+        {:feistel_cipher, "~> 0.2.0"}
       ]
     end
     ```
@@ -39,8 +39,9 @@ mix igniter.install feistel_cipher
     ```
     This command will generate a migration file in your `priv/repo/migrations` directory. You can customize the installation with the following options:
 
-    *   `--repo` or `-r`: Specify the Ecto repo for FeistelCipher to use (e.g., `MyApp.Repo`). Defaults to `YourApp.Repo`.
-    *   `--prefix` or `-p`: Specify a schema prefix for the FeistelCipher functions (e.g., `my_app_prefix`). Defaults to `public`.
+    * `--repo` or `-r`: Specify an Ecto repo for FeistelCipher to use.
+    * `--prefix` or `-p`: Specify a prefix for the FeistelCipher schema, defaults to `public`.
+    * `--seed` or `-p`: Specify the seed for the Feistel cipher, should be less than 2^31, defaults to `1_076_943_109`.
 
 
 ## Example Ecto Schema
