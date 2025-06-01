@@ -93,13 +93,18 @@ defmodule FeistelCipher.Migration do
 
   """
   def up(opts \\ []) when is_list(opts) do
+    import Bitwise
+
     %{
       create_schema: create_schema,
       prefix: prefix,
       quoted_prefix: quoted_prefix,
-      xor: xor,
-      mul: mul
+      seed: seed
     } = FeistelCipher.with_defaults(opts)
+
+    if seed <= 0 or seed >= 1 <<< 31 do
+      raise "feistel seed must be greater than 0 and less than 2^31"
+    end
 
     if create_schema, do: execute("CREATE SCHEMA IF NOT EXISTS #{quoted_prefix}")
 
@@ -145,7 +150,7 @@ defmodule FeistelCipher.Migration do
 
         WHILE i < 4 LOOP
           a[i + 1] := b[i];
-          b[i + 1] := a[i] # ((((b[i] # #{xor}) * #{mul}) # key) & half_mask);
+          b[i + 1] := a[i] # ((((b[i] # #{seed}) * #{seed}) # key) & half_mask);
 
           i := i + 1;
         END LOOP;
@@ -250,7 +255,7 @@ defmodule FeistelCipher.Migration do
       BEFORE INSERT OR UPDATE
       ON "#{table}"
       FOR EACH ROW
-      EXECUTE PROCEDURE handle_feistel_encryption(#{bits}, #{FeistelCipher.key_for_table(table)}, '#{source}', '#{target}');
+      EXECUTE PROCEDURE handle_feistel_encryption(#{bits}, #{FeistelCipher.table_seed(table)}, '#{source}', '#{target}');
     """
   end
 

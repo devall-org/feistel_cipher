@@ -19,10 +19,9 @@ defmodule Mix.Tasks.FeistelCipher.Install.Docs do
     mix feistel_cipher.install
     ```
 
-    * `--repo` or `-r` — Specify an Ecto repo for FeistelCipher to use
+    * `--repo` or `-r` — Specify an Ecto repo for FeistelCipher to use.
     * `--prefix` or `-p` — Specify a prefix for the FeistelCipher schema, defaults to `#{FeistelCipher.default_prefix()}`
-    * `--xor` or `-x` — Specify the XOR parameter for the Feistel cipher, should be less than 2^31, defaults to `#{FeistelCipher.default_xor()}`
-    * `--mul` or `-m` — Specify the MUL parameter for the Feistel cipher, should be less than 2^31, defaults to `#{FeistelCipher.default_mul()}`
+    * `--seed` or `-s` — Specify the seed for the Feistel cipher, should be less than 2^31, defaults to `#{FeistelCipher.default_seed()}`
     """
   end
 end
@@ -44,13 +43,12 @@ if Code.ensure_loaded?(Igniter) do
         only: nil,
         positional: [],
         composes: [],
-        schema: [repo: :string, prefix: :string, xor: :integer, mul: :integer],
+        schema: [repo: :string, prefix: :string, seed: :integer],
         defaults: [
           prefix: FeistelCipher.default_prefix(),
-          xor: FeistelCipher.default_xor(),
-          mul: FeistelCipher.default_mul()
+          seed: FeistelCipher.default_seed()
         ],
-        aliases: [r: :repo, p: :prefix, x: :xor, m: :mul],
+        aliases: [r: :repo, p: :prefix, s: :seed],
         required: []
       }
     end
@@ -64,11 +62,11 @@ if Code.ensure_loaded?(Igniter) do
         {:ok, repo} ->
           migration = """
           def up do
-            FeistelCipher.Migration.up(prefix: "#{opts[:prefix]}", xor: #{opts[:xor]}, mul: #{opts[:mul]})
+            FeistelCipher.Migration.up(prefix: "#{opts[:prefix]}", seed: #{opts[:seed]})
           end
 
           def down do
-            FeistelCipher.Migration.down(prefix: "#{opts[:prefix]}", xor: #{opts[:xor]}, mul: #{opts[:mul]})
+            FeistelCipher.Migration.down(prefix: "#{opts[:prefix]}", seed: #{opts[:seed]})
           end
           """
 
