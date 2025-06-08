@@ -112,7 +112,7 @@ defmodule FeistelCipher.Migration do
     # Algorithm reference from https://www.youtube.com/watch?v=FGhj3CGxl8I
 
     # bigint is 64 bits, but excluding negative numbers, only 63 bits are usable.
-    # For operational convenience, it's limited to 62 bits.
+    # Limited to a maximum of 62 bits as it needs to be halved for the operation.
     # Multiplication and operation parameters are all limited to 31 bits.
     # Since 31 bits (half of 62 bits) are multiplied by a 31-bit parameter,
     # the calculation result is also within the 62-bit range, making it safe for bigint.
@@ -244,7 +244,8 @@ defmodule FeistelCipher.Migration do
 
   """
   def up_sql_for_table(table, opts \\ []) when is_list(opts) do
-    bits = opts |> Keyword.get(:bits, 62)
+    # The default is 52 for JavaScript interoperability.
+    bits = opts |> Keyword.get(:bits, 52)
     0 = rem(bits, 2)
 
     source = opts |> Keyword.fetch!(:source)
