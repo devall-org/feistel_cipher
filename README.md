@@ -21,7 +21,7 @@ mix igniter.install feistel_cipher
     ```elixir
     def deps do
       [
-        {:feistel_cipher, "~> 0.2.0"}
+        {:feistel_cipher, "~> 0.3.0"}
       ]
     end
     ```
@@ -92,7 +92,7 @@ defmodule MyApp.Repo.Migrations.AddPostsFeistelTrigger do
   use Ecto.Migration
 
   def up do
-    # Default bits: 62
+    # Default bits: 52
     execute FeistelCipher.Migration.up_sql_for_table("posts", bits: 40, source: "seq", target: "id")
   end
 
@@ -109,7 +109,7 @@ The `up_sql_for_table/2` function accepts the following options:
 *   `table`: (String, required) The name of the table.
 *   `source`: (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
 *   `target`: (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
-*   `bits`: (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. Defaults to `62`.
+*   `bits`: (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for JavaScript interoperability.
 
 The trigger will automatically populate the `target` column when a new row is inserted. It also prevents manual modification of the `target` column on update.
 
