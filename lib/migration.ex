@@ -129,16 +129,12 @@ defmodule FeistelCipher.Migration do
         mask      bigint := (1::bigint << bits) - 1;
 
       BEGIN
-        IF bits > 62 THEN
-          RAISE EXCEPTION 'feistel bits must be 62 or less: %', bits;
+        IF bits < 2 OR bits > 62 OR bits % 2 = 1 THEN
+          RAISE EXCEPTION 'feistel bits must be an even number between 2 and 62: %', bits;
         END IF;
 
-        IF bits % 2 = 1 THEN
-          RAISE EXCEPTION 'feistel bits must be an even number: %', bits;
-        END IF;
-
-        IF key >= (1::bigint << 31) THEN
-          RAISE EXCEPTION 'feistel key is larger than 31 bits: %', key;
+        IF key < 0 OR key >= (1::bigint << 31) THEN
+          RAISE EXCEPTION 'feistel key must be between 0 and 2^31-1: %', key;
         END IF;
 
         IF input > mask THEN
@@ -184,6 +180,9 @@ defmodule FeistelCipher.Migration do
         source_column := TG_ARGV[2];
         target_column   := TG_ARGV[3];
 
+        -- Prevent manual modification of encrypted target column during UPDATE
+        -- The target column should only be set automatically based on the source column
+        -- Direct modification would break the encryption consistency
         IF TG_OP = 'UPDATE' THEN
           EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', target_column, target_column)
           INTO old_target_value, new_target_value
@@ -204,6 +203,9 @@ defmodule FeistelCipher.Migration do
           encrypted := #{prefix}.feistel(clear, bits, key);
           decrypted := #{prefix}.feistel(encrypted, bits, key);
 
+          -- Sanity check: This condition should never occur in practice
+          -- Feistel cipher is mathematically guaranteed to be reversible
+          -- If this fails, it indicates a serious bug in the feistel function implementation
           IF decrypted != clear THEN
             RAISE EXCEPTION 'feistel function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
               clear, encrypted, decrypted, bits, key;
@@ -220,6 +222,13 @@ defmodule FeistelCipher.Migration do
 
   @doc """
   Run the `down` changes.
+
+  ## ⚠️ WARNING
+
+  This function drops all FeistelCipher core functions. **PostgreSQL will automatically prevent
+  this operation if any triggers are still using these functions**, returning a dependency error.
+
+  You must remove all FeistelCipher triggers first before this migration can succeed.
 
   ## Example
 
@@ -238,18 +247,32 @@ defmodule FeistelCipher.Migration do
   @doc """
   Returns the SQL for creating a trigger for a table to encrypt a `source` field to a `target` field.
 
+  ## Arguments
+
+  * `table` - (String, required) The name of the table.
+  * `source` - (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
+  * `target` - (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
+  * `bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
+
+  ## Important Warning
+
+  ⚠️ Once a table has been created with a specific `bits` value, you **cannot** change the `bits` setting later.
+  The Feistel cipher algorithm depends on the `bits` parameter, and changing it would make existing encrypted IDs
+  incompatible with the new cipher. If you need to change the `bits` value, you would need to:
+  1. Drop the existing trigger using `down_for_encryption/3`
+  2. Recreate all existing data with the new cipher
+  3. Set up the new trigger with the desired `bits` value
+
+  For this reason, carefully consider your `bits` requirement before creating the initial trigger.
+
   ## Example
 
-      FeistelCipher.Migration.up_sql_for_table("posts", source: "seq", target: "id")
+      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52)
 
   """
-  def up_sql_for_table(table, opts \\ []) when is_list(opts) do
-    # The default is 52 for JavaScript interoperability.
-    bits = opts |> Keyword.get(:bits, 52)
+  def up_for_encryption(table, source, target, bits \\ 52) do
+    # The default is 52 for LiveView and JavaScript interoperability.
     0 = rem(bits, 2)
-
-    source = opts |> Keyword.fetch!(:source)
-    target = opts |> Keyword.fetch!(:target)
 
     """
     CREATE TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}"
@@ -263,16 +286,41 @@ defmodule FeistelCipher.Migration do
   @doc """
   Returns the SQL for dropping a trigger for a table to encrypt a `source` field to a `target` field.
 
+  ## Arguments
+
+  * `table` - (String, required) The name of the table.
+  * `source` - (String, required) The name of the source column.
+  * `target` - (String, required) The name of the target column.
+
+  ## ⚠️ DANGER WARNING
+
+  This function generates SQL that performs a **DANGEROUS** operation. The returned SQL includes safety guards
+  that will prevent accidental execution. This operation will:
+  - Remove the FeistelCipher trigger from the specified table
+  - Potentially break your application's encryption functionality
+  - May lead to data inconsistency if not handled properly
+
+  **The generated SQL will NOT execute by default.** You must manually remove the safety guard (`RAISE EXCEPTION`)
+  from the generated SQL after understanding the risks and confirming you really need to drop the trigger.
+
+  Before using this function, ensure you have:
+  1. Proper database backups
+  2. A clear understanding of the impact on your application
+  3. A plan for handling existing encrypted data
+
   ## Example
 
-      FeistelCipher.Migration.down_sql_for_table("posts", source: "seq", target: "id")
+      FeistelCipher.Migration.down_for_encryption("posts", "seq", "id")
 
   """
-  def down_sql_for_table(table, opts \\ []) when is_list(opts) do
-    source = opts |> Keyword.fetch!(:source)
-    target = opts |> Keyword.fetch!(:target)
-
+  def down_for_encryption(table, source, target) do
     """
+    DO $$
+    BEGIN
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This will break encryption for table "#{table}". Remove this RAISE EXCEPTION block to execute. See https://hexdocs.pm/feistel_cipher/0.4.0/FeistelCipher.Migration.html#down_for_encryption/3 for details.';
+    END
+    $$;
+
     DROP TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}" ON "#{table}";
     """
   end
