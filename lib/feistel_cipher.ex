@@ -1,8 +1,8 @@
 defmodule FeistelCipher do
   @moduledoc false
 
-  def table_seed(table) do
-    <<key::31, _::481>> = :crypto.hash(:sha512, table)
+  def encryption_key(table, source, target, bits) do
+    <<key::31, _::481>> = :crypto.hash(:sha512, "#{table}_#{source}_#{target}_#{bits}")
     key
   end
 

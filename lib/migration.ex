@@ -175,10 +175,10 @@ defmodule FeistelCipher.Migration do
         old_target_value bigint;
 
       BEGIN
-        bits             := TG_ARGV[0]::int;
-        key              := TG_ARGV[1]::bigint;
+        bits          := TG_ARGV[0]::int;
+        key           := TG_ARGV[1]::bigint;
         source_column := TG_ARGV[2];
-        target_column   := TG_ARGV[3];
+        target_column := TG_ARGV[3];
 
         -- Prevent manual modification of encrypted target column during UPDATE
         -- The target column should only be set automatically based on the source column
@@ -273,13 +273,14 @@ defmodule FeistelCipher.Migration do
   def up_for_encryption(table, source, target, bits \\ 52) do
     # The default is 52 for LiveView and JavaScript interoperability.
     0 = rem(bits, 2)
+    key = FeistelCipher.encryption_key(table, source, target, bits)
 
     """
     CREATE TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}"
       BEFORE INSERT OR UPDATE
       ON "#{table}"
       FOR EACH ROW
-      EXECUTE PROCEDURE handle_feistel_encryption(#{bits}, #{FeistelCipher.table_seed(table)}, '#{source}', '#{target}');
+      EXECUTE PROCEDURE handle_feistel_encryption(#{bits}, #{key}, '#{source}', '#{target}');
     """
   end
 
@@ -317,7 +318,7 @@ defmodule FeistelCipher.Migration do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This will break encryption for table "#{table}". Remove this RAISE EXCEPTION block to execute. See https://hexdocs.pm/feistel_cipher/0.4.0/FeistelCipher.Migration.html#down_for_encryption/3 for details.';
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This will break encryption for table "#{table}". Remove this RAISE EXCEPTION block to execute. See https://hexdocs.pm/feistel_cipher/0.5.0/FeistelCipher.Migration.html#down_for_encryption/3 for details.';
     END
     $$;
 
