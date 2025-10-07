@@ -66,6 +66,15 @@ defmodule FeistelCipher.Migration do
   """
 
   use Ecto.Migration
+  import Bitwise
+
+  @max_key_value Bitwise.bsl(1, 31)
+
+  defp validate_key!(key, name) do
+    unless key >= 0 and key < @max_key_value do
+      raise ArgumentError, "#{name} must be between 0 and 2^31-1, got: #{key}"
+    end
+  end
 
   @doc """
   Run the `up` changes.
@@ -79,10 +88,7 @@ defmodule FeistelCipher.Migration do
   def up(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
     cipher_salt = Keyword.get(opts, :cipher_salt, FeistelCipher.default_cipher_salt())
-
-    unless cipher_salt >= 0 and cipher_salt < Bitwise.bsl(1, 31) do
-      raise ArgumentError, "cipher_salt must be between 0 and 2^31-1, got: #{cipher_salt}"
-    end
+    validate_key!(cipher_salt, "cipher_salt")
 
     execute("CREATE SCHEMA IF NOT EXISTS #{functions_prefix}")
 
