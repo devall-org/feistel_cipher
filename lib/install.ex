@@ -58,18 +58,15 @@ if Code.ensure_loaded?(Igniter) do
       app_name = Igniter.Project.Application.app_name(igniter)
       opts = igniter.args.options
 
-      up = FeistelCipher.Migration.up(opts)
-      down = FeistelCipher.Migration.down(opts)
-
       case extract_repo(igniter, app_name, opts[:repo]) do
         {:ok, repo} ->
           migration = """
           def up do
-            execute(#{inspect(up, pretty: true)})
+            FeistelCipher.Migration.up(functions_prefix: "#{opts[:functions_prefix]}", functions_salt: #{opts[:functions_salt]})
           end
 
           def down do
-            execute(#{inspect(down, pretty: true)})
+            FeistelCipher.Migration.down(functions_prefix: "#{opts[:functions_prefix]}")
           end
           """
 
