@@ -77,8 +77,6 @@ defmodule FeistelCipher.Migration do
     * `:cipher_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_cipher_salt()`.
   """
   def up(opts \\ []) when is_list(opts) do
-    import Bitwise
-
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
     cipher_salt = Keyword.get(opts, :cipher_salt, FeistelCipher.default_cipher_salt())
 
