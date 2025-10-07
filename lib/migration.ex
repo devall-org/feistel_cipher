@@ -252,8 +252,9 @@ defmodule FeistelCipher.Migration do
   * `table` - (String, required) The name of the table.
   * `source` - (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
   * `target` - (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
-  * `bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
-  * `key` - (Integer, optional) The encryption key. Must be between 0 and 2^31-1 (2,147,483,647). If not provided, a key is automatically generated from a hash of the table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
+  * `opts` - (Keyword list, optional) Configuration options:
+    * `:bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
+    * `:key` - (Integer, optional) The encryption key. Must be between 0 and 2^31-1 (2,147,483,647). If not provided, a key is automatically generated from a hash of the table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
 
   ## Important Warning
 
@@ -275,14 +276,20 @@ defmodule FeistelCipher.Migration do
 
   ## Examples
 
-      # Automatic key generation
-      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52)
+      # Automatic key generation (default bits: 52)
+      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id")
+
+      # With custom bits
+      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", bits: 40)
 
       # Explicit key for compatibility
-      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52, 123456789)
+      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", bits: 52, key: 123456789)
 
   """
-  def up_for_encryption(table, source, target, bits \\ 52, key \\ nil) do
+  def up_for_encryption(table, source, target, opts \\ []) when is_list(opts) do
+    bits = Keyword.get(opts, :bits, 52)
+    key = Keyword.get(opts, :key)
+
     # The default is 52 for LiveView and JavaScript interoperability.
     if rem(bits, 2) != 0 do
       raise ArgumentError, "bits must be an even number, got: #{bits}"
@@ -332,9 +339,9 @@ defmodule FeistelCipher.Migration do
 
   2. **Different Key (REQUIRES MANUAL ACTION)**: If any of these parameters change, the key will be different:
      - Find the original key from your previous migration
-     - Use `up_for_encryption/5` with the explicit `key` parameter:
+     - Use `up_for_encryption/4` with the explicit `:key` option:
        ```elixir
-       FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52, original_key)
+       FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", bits: 52, key: original_key)
        ```
 
   3. **Empty Table (SAFE)**: If the table has no data, you can safely use a new key by simply removing
