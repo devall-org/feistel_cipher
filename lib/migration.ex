@@ -253,7 +253,7 @@ defmodule FeistelCipher.Migration do
   * `source` - (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
   * `target` - (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
   * `bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
-  * `key` - (Integer, optional) The encryption key. If not provided, a key is automatically generated based on the table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
+  * `key` - (Integer, optional) The encryption key. Must be between 0 and 2^31-1 (2,147,483,647). If not provided, a key is automatically generated from a hash of the table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
 
   ## Important Warning
 
@@ -328,7 +328,7 @@ defmodule FeistelCipher.Migration do
   **If you plan to recreate the trigger after dropping it**, you must ensure key compatibility:
 
   1. **Same Key (SAFE)**: If the new trigger uses the same key as the old one, existing encrypted data remains valid.
-     When no key is explicitly provided, the key is automatically generated based on `table`, `source`, `target`, and `bits` parameters.
+     When no key is explicitly provided, the key is automatically generated from a hash of the table, source, target, and bits parameters.
 
   2. **Different Key (REQUIRES MANUAL ACTION)**: If any of these parameters change, the key will be different:
      - Find the original key from your previous migration
