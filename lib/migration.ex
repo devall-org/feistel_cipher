@@ -66,15 +66,6 @@ defmodule FeistelCipher.Migration do
   """
 
   use Ecto.Migration
-  import Bitwise
-
-  @max_key_value Bitwise.bsl(1, 31)
-
-  defp validate_key!(key, name) do
-    unless key >= 0 and key < @max_key_value do
-      raise ArgumentError, "#{name} must be between 0 and 2^31-1, got: #{key}"
-    end
-  end
 
   @doc """
   Run the `up` changes.
@@ -361,5 +352,13 @@ defmodule FeistelCipher.Migration do
 
   defp trigger_name(table, source, target) do
     "#{table}_encrypt_#{source}_to_#{target}_trigger"
+  end
+
+  @max_key_value Bitwise.bsl(1, 31)
+
+  defp validate_key!(key, name) do
+    unless key >= 0 and key < @max_key_value do
+      raise ArgumentError, "#{name} must be between 0 and 2^31-1, got: #{key}"
+    end
   end
 end
