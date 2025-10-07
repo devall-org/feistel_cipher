@@ -84,7 +84,7 @@ defmodule FeistelCipher.Migration do
       raise ArgumentError, "cipher_salt must be between 0 and 2^31-1, got: #{cipher_salt}"
     end
 
-    execute("CREATE SCHEMA IF NOT EXISTS \"#{functions_prefix}\"")
+    execute("CREATE SCHEMA IF NOT EXISTS #{functions_prefix}")
 
     # Copied from https://wiki.postgresql.org/wiki/Pseudo_encrypt
     # Algorithm reference from https://www.youtube.com/watch?v=FGhj3CGxl8I
@@ -282,9 +282,9 @@ defmodule FeistelCipher.Migration do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
     """
-    CREATE TRIGGER "#{trigger_name(table, source, target)}"
+    CREATE TRIGGER #{trigger_name(table, source, target)}
       BEFORE INSERT OR UPDATE
-      ON "#{prefix}.#{table}"
+      ON #{prefix}.#{table}
       FOR EACH ROW
       EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{source}', '#{target}');
     """
@@ -343,11 +343,11 @@ defmodule FeistelCipher.Migration do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the "#{source}" -> "#{target}" encryption for table "#{prefix}.#{table}". Check key compatibility before proceeding. Remove this RAISE EXCEPTION block to execute. See FeistelCipher.Migration.down_for_encryption/4 documentation for details.';
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{source} -> #{target} encryption for table #{prefix}.#{table}. Check key compatibility before proceeding. Remove this RAISE EXCEPTION block to execute. See FeistelCipher.Migration.down_for_encryption/4 documentation for details.';
     END
     $$;
 
-    DROP TRIGGER "#{trigger_name(table, source, target)}" ON "#{prefix}.#{table}";
+    DROP TRIGGER #{trigger_name(table, source, target)} ON #{prefix}.#{table};
     """
   end
 

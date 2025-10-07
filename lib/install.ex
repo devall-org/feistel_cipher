@@ -70,10 +70,11 @@ if Code.ensure_loaded?(Igniter) do
           end
           """
 
+          # Feistel cipher first published on May 1, 1973 (Horst Feistel, "Cryptography and Computer Privacy", Scientific American)
           igniter
           |> Igniter.Project.Formatter.import_dep(:feistel_cipher)
           |> Igniter.Libs.Ecto.gen_migration(repo, "add_feistel_cipher",
-            timestamp: "19700101000000",
+            timestamp: "19730501000000",
             body: migration,
             on_exists: :skip
           )
