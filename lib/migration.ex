@@ -74,12 +74,12 @@ defmodule FeistelCipher.Migration do
 
   * `opts` - (Keyword list, optional) Configuration options:
     * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions will be created. Defaults to "public".
-    * `:cipher_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_cipher_salt()`.
+    * `:functions_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_functions_salt()`.
   """
   def up(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
-    cipher_salt = Keyword.get(opts, :cipher_salt, FeistelCipher.default_cipher_salt())
-    validate_key!(cipher_salt, "cipher_salt")
+    functions_salt = Keyword.get(opts, :functions_salt, FeistelCipher.default_functions_salt())
+    validate_key!(functions_salt, "functions_salt")
 
     execute("CREATE SCHEMA IF NOT EXISTS #{functions_prefix}")
 
@@ -121,7 +121,7 @@ defmodule FeistelCipher.Migration do
 
         WHILE i < 4 LOOP
           a[i + 1] := b[i];
-          b[i + 1] := a[i] # ((((b[i] # #{cipher_salt}) * #{cipher_salt}) # key) & half_mask);
+          b[i + 1] := a[i] # ((((b[i] # #{functions_salt}) * #{functions_salt}) # key) & half_mask);
 
           i := i + 1;
         END LOOP;

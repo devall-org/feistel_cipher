@@ -1,7 +1,7 @@
 defmodule FeistelCipher do
   @moduledoc false
 
-  def default_cipher_salt do
+  def default_functions_salt do
     1_076_943_109
   end
 

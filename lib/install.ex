@@ -21,7 +21,7 @@ defmodule Mix.Tasks.FeistelCipher.Install.Docs do
 
     * `--repo` or `-r` — Specify an Ecto repo for FeistelCipher to use.
     * `--functions-prefix` or `-p` — Specify the PostgreSQL schema prefix where the FeistelCipher functions will be created, defaults to `public`
-    * `--cipher-salt` or `-s` — Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `#{FeistelCipher.default_cipher_salt()}`
+    * `--functions-salt` or `-s` — Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `#{FeistelCipher.default_functions_salt()}`
     """
   end
 end
@@ -43,12 +43,12 @@ if Code.ensure_loaded?(Igniter) do
         only: nil,
         positional: [],
         composes: [],
-        schema: [repo: :string, functions_prefix: :string, cipher_salt: :integer],
+        schema: [repo: :string, functions_prefix: :string, functions_salt: :integer],
         defaults: [
           functions_prefix: "public",
-          cipher_salt: FeistelCipher.default_cipher_salt()
+          functions_salt: FeistelCipher.default_functions_salt()
         ],
-        aliases: [r: :repo, p: :functions_prefix, s: :cipher_salt],
+        aliases: [r: :repo, p: :functions_prefix, s: :functions_salt],
         required: []
       }
     end
@@ -62,7 +62,7 @@ if Code.ensure_loaded?(Igniter) do
         {:ok, repo} ->
           migration = """
           def up do
-            FeistelCipher.Migration.up(functions_prefix: "#{opts[:functions_prefix]}", cipher_salt: #{opts[:cipher_salt]})
+            FeistelCipher.Migration.up(functions_prefix: "#{opts[:functions_prefix]}", functions_salt: #{opts[:functions_salt]})
           end
 
           def down do

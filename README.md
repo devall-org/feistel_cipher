@@ -41,7 +41,7 @@ mix igniter.install feistel_cipher
 
     * `--repo` or `-r`: Specify an Ecto repo for FeistelCipher to use.
     * `--functions-prefix` or `-p`: Specify the PostgreSQL schema prefix where the FeistelCipher functions will be created, defaults to `public`.
-    * `--cipher-salt` or `-s`: Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `1_076_943_109`.
+    * `--functions-salt` or `-s`: Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `1_076_943_109`.
 
 
 ## Example Ecto Schema
