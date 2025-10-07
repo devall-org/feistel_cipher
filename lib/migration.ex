@@ -75,17 +75,6 @@ defmodule FeistelCipher.Migration do
   * `opts` - (Keyword list, optional) Configuration options:
     * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions will be created. Defaults to "public".
     * `:cipher_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_cipher_salt()`.
-
-  ## Example
-
-  Run migrations in an alternate prefix:
-
-      FeistelCipher.Migration.up(functions_prefix: "payments")
-
-  Run migrations with a custom cipher salt:
-
-      FeistelCipher.Migration.up(functions_prefix: "payments", cipher_salt: 123456789)
-
   """
   def up(opts \\ []) when is_list(opts) do
     import Bitwise
@@ -223,15 +212,6 @@ defmodule FeistelCipher.Migration do
 
   This function drops all FeistelCipher core functions. **PostgreSQL will automatically prevent
   this operation if any triggers are still using these functions**, returning a dependency error.
-
-  You must remove all FeistelCipher triggers first before this migration can succeed.
-
-  ## Example
-
-  Run migrations in an alternate prefix:
-
-      FeistelCipher.Migration.down(functions_prefix: "payments")
-
   """
   def down(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
