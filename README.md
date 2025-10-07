@@ -82,7 +82,7 @@ The Ecto schema above reflects how Ecto maps these PostgreSQL types and their be
 
 ## Creating Triggers for Tables
 
-To automatically encrypt a source column into a target column for a specific table, you can create a database trigger. The `FeistelCipher.Migration.up_for_encryption/4` function helps generate the necessary SQL.
+To automatically encrypt a source column into a target column for a specific table, you can create a database trigger. The `FeistelCipher.Migration.up_for_encryption/5` function helps generate the necessary SQL.
 
 For example, if you have a table named `posts` with a `seq` column (source) and you want to store the Feistel ciphered ID in an `id` column (target):
 
@@ -92,26 +92,30 @@ defmodule MyApp.Repo.Migrations.AddPostsFeistelTrigger do
   use Ecto.Migration
 
   def up do
-    execute FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52)
+    execute FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id", bits: 52)
   end
 
   def down do
-    execute FeistelCipher.Migration.down_for_encryption("posts", "seq", "id")
+    execute FeistelCipher.Migration.down_for_encryption("public", "posts", "seq", "id")
   end
 end
 ```
 
 Then run `mix ecto.migrate` to apply the migration.
 
-The `up_for_encryption/4` function accepts the following arguments:
+The `up_for_encryption/5` function accepts the following arguments:
 
+*   `prefix`: (String, required) The PostgreSQL schema prefix where the table resides.
 *   `table`: (String, required) The name of the table.
 *   `source`: (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
 *   `target`: (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
-*   `bits`: (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
+*   `opts`: (Keyword list, optional) Configuration options:
+    *   `:bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
+    *   `:key` - (Integer, optional) The encryption key. Must be between 0 and 2^31-1. If not provided, a key is automatically generated.
+    *   `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions are located. Defaults to "public".
 
 **⚠️ Important:** Once a table has been created with a specific `bits` value, you **cannot** change the `bits` setting later. The Feistel cipher algorithm depends on the `bits` parameter, and changing it would make existing encrypted IDs incompatible with the new cipher. If you need to change the `bits` value, you would need to:
-1. Drop the existing trigger using `down_for_encryption/3`
+1. Drop the existing trigger using `down_for_encryption/4`
 2. Recreate all existing data with the new cipher
 3. Set up the new trigger with the desired `bits` value
 
