@@ -35,33 +35,18 @@ defmodule FeistelCipher.Migration do
   ## Isolation with Prefixes
 
   FeistelCipher supports namespacing through PostgreSQL schemas, also called "prefixes" in Ecto. With
-  prefixes your jobs table can reside outside of your primary schema (usually public) and you can
-  have multiple separate job tables.
+  prefixes your cipher functions can reside outside of your primary schema (usually public) and you can
+  have multiple separate cipher function sets.
 
   To use a prefix you first have to specify it within your migration:
 
   ```elixir
-  defmodule MyApp.Repo.Migrations.AddPrefixedFeistelIdJobsTable do
+  defmodule MyApp.Repo.Migrations.AddPrefixedFeistelCipherFunctions do
     use Ecto.Migration
 
-    def up, do: FeistelCipher.Migration.up(prefix: "private")
+    def up, do: FeistelCipher.Migration.up(functions_prefix: "private")
 
-    def down, do: FeistelCipher.Migration.down(prefix: "private")
-  end
-  ```
-
-  In some cases, for example if your "private" schema already exists and your database user in
-  production doesn't have permissions to create a new schema, trying to create the schema from the
-  migration will result in an error. In such situations, it may be useful to inhibit the creation
-  of the "private" schema:
-
-  ```elixir
-  defmodule MyApp.Repo.Migrations.AddPrefixedFeistelIdJobsTable do
-    use Ecto.Migration
-
-    def up, do: FeistelCipher.Migration.up(prefix: "private", create_schema: false)
-
-    def down, do: FeistelCipher.Migration.down(prefix: "private")
+    def down, do: FeistelCipher.Migration.down(functions_prefix: "private")
   end
   ```
 
@@ -85,28 +70,18 @@ defmodule FeistelCipher.Migration do
   @doc """
   Run the `up` changes.
 
-  ## Example
+  ## Arguments
 
-  Run migrations in an alternate prefix:
-
-      FeistelCipher.Migration.up(prefix: "payments")
-
+  * `opts` - (Keyword list, optional) Configuration options:
+    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions will be created. Defaults to "public".
+    * `:functions_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_functions_salt()`.
   """
   def up(opts \\ []) when is_list(opts) do
-    import Bitwise
+    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
+    functions_salt = Keyword.get(opts, :functions_salt, FeistelCipher.default_functions_salt())
+    validate_key!(functions_salt, "functions_salt")
 
-    %{
-      create_schema: create_schema,
-      prefix: prefix,
-      quoted_prefix: quoted_prefix,
-      seed: seed
-    } = FeistelCipher.with_defaults(opts)
-
-    if seed <= 0 or seed >= 1 <<< 31 do
-      raise "feistel seed must be greater than 0 and less than 2^31"
-    end
-
-    if create_schema, do: execute("CREATE SCHEMA IF NOT EXISTS #{quoted_prefix}")
+    execute("CREATE SCHEMA IF NOT EXISTS #{functions_prefix}")
 
     # Copied from https://wiki.postgresql.org/wiki/Pseudo_encrypt
     # Algorithm reference from https://www.youtube.com/watch?v=FGhj3CGxl8I
@@ -117,7 +92,7 @@ defmodule FeistelCipher.Migration do
     # Since 31 bits (half of 62 bits) are multiplied by a 31-bit parameter,
     # the calculation result is also within the 62-bit range, making it safe for bigint.
     execute("""
-    CREATE FUNCTION #{prefix}.feistel(input bigint, bits int, key bigint) returns bigint AS $$
+    CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint) returns bigint AS $$
       DECLARE
         i int := 1;
 
@@ -146,7 +121,7 @@ defmodule FeistelCipher.Migration do
 
         WHILE i < 4 LOOP
           a[i + 1] := b[i];
-          b[i + 1] := a[i] # ((((b[i] # #{seed}) * #{seed}) # key) & half_mask);
+          b[i + 1] := a[i] # ((((b[i] # #{functions_salt}) * #{functions_salt}) # key) & half_mask);
 
           i := i + 1;
         END LOOP;
@@ -160,7 +135,7 @@ defmodule FeistelCipher.Migration do
     """)
 
     execute("""
-    CREATE FUNCTION #{prefix}.handle_feistel_encryption() RETURNS trigger AS $$
+    CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
       DECLARE
         bits int;
         key bigint;
@@ -200,14 +175,14 @@ defmodule FeistelCipher.Migration do
         IF clear IS NULL THEN
           encrypted := NULL;
         ELSE
-          encrypted := #{prefix}.feistel(clear, bits, key);
-          decrypted := #{prefix}.feistel(encrypted, bits, key);
+          encrypted := #{functions_prefix}.feistel_encrypt(clear, bits, key);
+          decrypted := #{functions_prefix}.feistel_encrypt(encrypted, bits, key);
 
           -- Sanity check: This condition should never occur in practice
           -- Feistel cipher is mathematically guaranteed to be reversible
-          -- If this fails, it indicates a serious bug in the feistel function implementation
+          -- If this fails, it indicates a serious bug in the feistel_encrypt function implementation
           IF decrypted != clear THEN
-            RAISE EXCEPTION 'feistel function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
+            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
               clear, encrypted, decrypted, bits, key;
           END IF;
         END IF;
@@ -223,25 +198,21 @@ defmodule FeistelCipher.Migration do
   @doc """
   Run the `down` changes.
 
+  ## Arguments
+
+  * `opts` - (Keyword list, optional) Configuration options:
+    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions are located. Defaults to "public".
+
   ## ⚠️ WARNING
 
   This function drops all FeistelCipher core functions. **PostgreSQL will automatically prevent
   this operation if any triggers are still using these functions**, returning a dependency error.
-
-  You must remove all FeistelCipher triggers first before this migration can succeed.
-
-  ## Example
-
-  Run migrations in an alternate prefix:
-
-      FeistelCipher.Migration.down(prefix: "payments")
-
   """
   def down(opts \\ []) when is_list(opts) do
-    %{prefix: prefix} = FeistelCipher.with_defaults(opts)
+    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
-    execute("DROP FUNCTION #{prefix}.feistel(bigint, int, bigint)")
-    execute("DROP FUNCTION #{prefix}.handle_feistel_encryption()")
+    execute("DROP FUNCTION #{functions_prefix}.feistel_encrypt(bigint, int, bigint)")
+    execute("DROP FUNCTION #{functions_prefix}.feistel_column_trigger()")
   end
 
   @doc """
@@ -249,38 +220,67 @@ defmodule FeistelCipher.Migration do
 
   ## Arguments
 
+  * `prefix` - (String, required) The PostgreSQL schema prefix where the table resides.
   * `table` - (String, required) The name of the table.
   * `source` - (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
   * `target` - (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
-  * `bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
+  * `opts` - (Keyword list, optional) Configuration options:
+    * `:bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
+    * `:key` - (Integer, optional) The encryption key. Must be between 0 and 2^31-1 (2,147,483,647). If not provided, a key is automatically generated from a hash of the prefix, table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
+    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions (`feistel_encrypt` and `feistel_column_trigger`) are located. This should match the `functions_prefix` used when running `FeistelCipher.Migration.up/1`. Defaults to "public".
 
   ## Important Warning
 
   ⚠️ Once a table has been created with a specific `bits` value, you **cannot** change the `bits` setting later.
   The Feistel cipher algorithm depends on the `bits` parameter, and changing it would make existing encrypted IDs
   incompatible with the new cipher. If you need to change the `bits` value, you would need to:
-  1. Drop the existing trigger using `down_for_encryption/3`
+  1. Drop the existing trigger using `down_for_encryption/4`
   2. Recreate all existing data with the new cipher
   3. Set up the new trigger with the desired `bits` value
 
   For this reason, carefully consider your `bits` requirement before creating the initial trigger.
 
-  ## Example
+  ## Key Compatibility
 
-      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52)
+  When no key is explicitly provided, the encryption key is automatically generated from a hash of the prefix, table, source, target, and bits parameters.
+  If you need to recreate a trigger with the same key (to maintain data compatibility), you can either:
+  1. Use the same prefix, table, source, target, and bits parameters (automatic key generation)
+  2. Explicitly provide the original key using the `key` parameter
+
+  ## Examples
+
+      # Automatic key generation (default bits: 52)
+      FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id")
+
+      # With custom bits
+      FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id", bits: 40)
+
+      # Explicit key for compatibility
+      FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id", bits: 52, key: 123456789)
+
+      # When FeistelCipher functions are in a different prefix (e.g., "crypto" prefix)
+      FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id", functions_prefix: "crypto")
 
   """
-  def up_for_encryption(table, source, target, bits \\ 52) do
+  def up_for_encryption(prefix, table, source, target, opts \\ []) when is_list(opts) do
     # The default is 52 for LiveView and JavaScript interoperability.
-    0 = rem(bits, 2)
-    key = FeistelCipher.encryption_key(table, source, target, bits)
+    bits = Keyword.get(opts, :bits, 52)
+
+    unless rem(bits, 2) == 0 do
+      raise ArgumentError, "bits must be an even number, got: #{bits}"
+    end
+
+    key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target, bits)
+    validate_key!(key, "key")
+
+    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
     """
-    CREATE TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}"
+    CREATE TRIGGER #{trigger_name(table, source, target)}
       BEFORE INSERT OR UPDATE
-      ON "#{table}"
+      ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE handle_feistel_encryption(#{bits}, #{key}, '#{source}', '#{target}');
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{source}', '#{target}');
     """
   end
 
@@ -289,6 +289,7 @@ defmodule FeistelCipher.Migration do
 
   ## Arguments
 
+  * `prefix` - (String, required) The PostgreSQL schema prefix where the table resides.
   * `table` - (String, required) The name of the table.
   * `source` - (String, required) The name of the source column.
   * `target` - (String, required) The name of the target column.
@@ -298,31 +299,64 @@ defmodule FeistelCipher.Migration do
   This function generates SQL that performs a **DANGEROUS** operation. The returned SQL includes safety guards
   that will prevent accidental execution. This operation will:
   - Remove the FeistelCipher trigger from the specified table
-  - Potentially break your application's encryption functionality
+  - Break the `source` -> `target` encryption for the specified table
   - May lead to data inconsistency if not handled properly
 
   **The generated SQL will NOT execute by default.** You must manually remove the safety guard (`RAISE EXCEPTION`)
   from the generated SQL after understanding the risks and confirming you really need to drop the trigger.
 
+  ## Key Compatibility and Safe Recreation
+
+  **If you plan to recreate the trigger after dropping it**, you must ensure key compatibility:
+
+  1. **Same Key (SAFE)**: If the new trigger uses the same key as the old one, existing encrypted data remains valid.
+     When no key is explicitly provided, the key is automatically generated from a hash of the prefix, table, source, target, and bits parameters.
+
+  2. **Different Key (REQUIRES MANUAL ACTION)**: If any of these parameters change, the key will be different:
+     - Find the original key from your previous migration
+     - Use `up_for_encryption/5` with the explicit `:key` option:
+       ```elixir
+       FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id", bits: 52, key: original_key)
+       ```
+
+  3. **Empty Table (SAFE)**: If the table has no data, you can safely use a new key by simply removing
+     the `RAISE EXCEPTION` block and proceeding with the new trigger.
+
   Before using this function, ensure you have:
   1. Proper database backups
-  2. A clear understanding of the impact on your application
-  3. A plan for handling existing encrypted data
+  2. A clear understanding of the key compatibility impact
+  3. The original key value if parameters have changed
+  4. Verified whether the table contains data
 
   ## Example
 
-      FeistelCipher.Migration.down_for_encryption("posts", "seq", "id")
+      FeistelCipher.Migration.down_for_encryption("public", "posts", "seq", "id")
 
   """
-  def down_for_encryption(table, source, target) do
+  def down_for_encryption(prefix, table, source, target) do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This will break encryption for table "#{table}". Remove this RAISE EXCEPTION block to execute. See https://hexdocs.pm/feistel_cipher/0.5.0/FeistelCipher.Migration.html#down_for_encryption/3 for details.';
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{source} -> #{target} encryption for table #{prefix}.#{table}. Check key compatibility before proceeding. Remove this RAISE EXCEPTION block to execute. See FeistelCipher.Migration.down_for_encryption/4 documentation for details.';
     END
     $$;
 
-    DROP TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}" ON "#{table}";
+    DROP TRIGGER #{trigger_name(table, source, target)} ON #{prefix}.#{table};
     """
+  end
+
+  defp generate_key(prefix, table, source, target, bits) do
+    <<key::31, _::481>> = :crypto.hash(:sha512, "#{prefix}_#{table}_#{source}_#{target}_#{bits}")
+    key
+  end
+
+  defp trigger_name(table, source, target) do
+    "#{table}_encrypt_#{source}_to_#{target}_trigger"
+  end
+
+  defp validate_key!(key, name) do
+    unless key >= 0 and key < Bitwise.bsl(1, 31) do
+      raise ArgumentError, "#{name} must be between 0 and 2^31-1, got: #{key}"
+    end
   end
 end
