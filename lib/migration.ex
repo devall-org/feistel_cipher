@@ -41,25 +41,10 @@ defmodule FeistelCipher.Migration do
   To use a prefix you first have to specify it within your migration:
 
   ```elixir
-  defmodule MyApp.Repo.Migrations.AddPrefixedFeistelIdJobsTable do
+  defmodule MyApp.Repo.Migrations.AddPrefixedFeistelCipherFunctions do
     use Ecto.Migration
 
     def up, do: FeistelCipher.Migration.up(functions_prefix: "private")
-
-    def down, do: FeistelCipher.Migration.down(functions_prefix: "private")
-  end
-  ```
-
-  In some cases, for example if your "private" schema already exists and your database user in
-  production doesn't have permissions to create a new schema, trying to create the schema from the
-  migration will result in an error. In such situations, it may be useful to inhibit the creation
-  of the "private" schema:
-
-  ```elixir
-  defmodule MyApp.Repo.Migrations.AddPrefixedFeistelIdJobsTable do
-    use Ecto.Migration
-
-    def up, do: FeistelCipher.Migration.up(functions_prefix: "private", create_schema: false)
 
     def down, do: FeistelCipher.Migration.down(functions_prefix: "private")
   end
