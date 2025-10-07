@@ -275,10 +275,6 @@ defmodule FeistelCipher.Migration do
 
     key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target, bits)
 
-    unless key >= 0 and key < Bitwise.bsl(1, 31) do
-      raise ArgumentError, "key must be between 0 and 2^31-1, got: #{key}"
-    end
-
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
     """
