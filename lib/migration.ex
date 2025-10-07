@@ -95,18 +95,14 @@ defmodule FeistelCipher.Migration do
   def up(opts \\ []) when is_list(opts) do
     import Bitwise
 
-    %{
-      create_schema: create_schema,
-      prefix: prefix,
-      quoted_prefix: quoted_prefix,
-      seed: seed
-    } = up_opts_with_defaults(opts)
+    prefix = Keyword.get(opts, :prefix, "public")
+    seed = Keyword.get(opts, :seed, FeistelCipher.default_seed())
 
-    if seed <= 0 or seed >= 1 <<< 31 do
-      raise "feistel seed must be greater than 0 and less than 2^31"
+    unless seed >= 0 and seed < Bitwise.bsl(1, 31) do
+      raise ArgumentError, "seed must be between 0 and 2^31-1, got: #{seed}"
     end
 
-    if create_schema, do: execute("CREATE SCHEMA IF NOT EXISTS #{quoted_prefix}")
+    execute("CREATE SCHEMA IF NOT EXISTS \"#{prefix}\"")
 
     # Copied from https://wiki.postgresql.org/wiki/Pseudo_encrypt
     # Algorithm reference from https://www.youtube.com/watch?v=FGhj3CGxl8I
@@ -238,7 +234,7 @@ defmodule FeistelCipher.Migration do
 
   """
   def down(opts \\ []) when is_list(opts) do
-    %{prefix: prefix} = FeistelCipher.with_defaults(opts)
+    prefix = Keyword.get(opts, :prefix, "public")
 
     execute("DROP FUNCTION #{prefix}.feistel(bigint, int, bigint)")
     execute("DROP FUNCTION #{prefix}.handle_feistel_encryption()")
@@ -377,18 +373,5 @@ defmodule FeistelCipher.Migration do
 
   defp trigger_name(table, source, target) do
     "#{table}_encrypt_#{source}_to_#{target}_trigger"
-  end
-
-  defp up_opts_with_defaults(opts) do
-    opts =
-      Enum.into(opts, %{
-        prefix: "public",
-        seed: FeistelCipher.default_seed()
-      })
-
-    opts
-    |> Map.put_new(:create_schema, opts.prefix != "public")
-    |> Map.put(:quoted_prefix, inspect(opts.prefix))
-    |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
   end
 end
