@@ -282,27 +282,28 @@ defmodule FeistelCipher.Migration do
       FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", bits: 52, key: 123456789)
 
   """
-  def up_for_encryption(table, source, target, opts \\ []) when is_list(opts) do
-    bits = Keyword.get(opts, :bits, 52)
-    key = Keyword.get(opts, :key)
-
+  def up_for_encryption(prefix, table, source, target, opts \\ []) when is_list(opts) do
     # The default is 52 for LiveView and JavaScript interoperability.
-    if rem(bits, 2) != 0 do
+    bits = Keyword.get(opts, :bits, 52)
+
+    unless rem(bits, 2) == 0 do
       raise ArgumentError, "bits must be an even number, got: #{bits}"
     end
 
-    key = key || generate_key(table, source, target, bits)
+    key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target, bits)
 
     unless key >= 0 and key < Bitwise.bsl(1, 31) do
       raise ArgumentError, "key must be between 0 and 2^31-1, got: #{key}"
     end
 
+    function_prefix = Keyword.get(opts, :function_prefix, "public")
+
     """
     CREATE TRIGGER "#{trigger_name(table, source, target)}"
       BEFORE INSERT OR UPDATE
-      ON "#{table}"
+      ON "#{prefix}.#{table}"
       FOR EACH ROW
-      EXECUTE PROCEDURE handle_feistel_encryption(#{bits}, #{key}, '#{source}', '#{target}');
+      EXECUTE PROCEDURE #{function_prefix}.handle_feistel_encryption(#{bits}, #{key}, '#{source}', '#{target}');
     """
   end
 
@@ -366,8 +367,8 @@ defmodule FeistelCipher.Migration do
     """
   end
 
-  defp generate_key(table, source, target, bits) do
-    <<key::31, _::481>> = :crypto.hash(:sha512, "#{table}_#{source}_#{target}_#{bits}")
+  defp generate_key(prefix, table, source, target, bits) do
+    <<key::31, _::481>> = :crypto.hash(:sha512, "#{prefix}_#{table}_#{source}_#{target}_#{bits}")
     key
   end
 
