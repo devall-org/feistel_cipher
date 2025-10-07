@@ -108,7 +108,7 @@ defmodule FeistelCipher.Migration do
     # Since 31 bits (half of 62 bits) are multiplied by a 31-bit parameter,
     # the calculation result is also within the 62-bit range, making it safe for bigint.
     execute("""
-    CREATE FUNCTION #{functions_prefix}.feistel(input bigint, bits int, key bigint) returns bigint AS $$
+    CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint) returns bigint AS $$
       DECLARE
         i int := 1;
 
@@ -151,7 +151,7 @@ defmodule FeistelCipher.Migration do
     """)
 
     execute("""
-    CREATE FUNCTION #{functions_prefix}.handle_feistel_encryption() RETURNS trigger AS $$
+    CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
       DECLARE
         bits int;
         key bigint;
@@ -191,14 +191,14 @@ defmodule FeistelCipher.Migration do
         IF clear IS NULL THEN
           encrypted := NULL;
         ELSE
-          encrypted := #{functions_prefix}.feistel(clear, bits, key);
-          decrypted := #{functions_prefix}.feistel(encrypted, bits, key);
+          encrypted := #{functions_prefix}.feistel_encrypt(clear, bits, key);
+          decrypted := #{functions_prefix}.feistel_encrypt(encrypted, bits, key);
 
           -- Sanity check: This condition should never occur in practice
           -- Feistel cipher is mathematically guaranteed to be reversible
-          -- If this fails, it indicates a serious bug in the feistel function implementation
+          -- If this fails, it indicates a serious bug in the feistel_encrypt function implementation
           IF decrypted != clear THEN
-            RAISE EXCEPTION 'feistel function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
+            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
               clear, encrypted, decrypted, bits, key;
           END IF;
         END IF;
@@ -236,8 +236,8 @@ defmodule FeistelCipher.Migration do
   def down(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
-    execute("DROP FUNCTION #{functions_prefix}.feistel(bigint, int, bigint)")
-    execute("DROP FUNCTION #{functions_prefix}.handle_feistel_encryption()")
+    execute("DROP FUNCTION #{functions_prefix}.feistel_encrypt(bigint, int, bigint)")
+    execute("DROP FUNCTION #{functions_prefix}.feistel_column_trigger()")
   end
 
   @doc """
@@ -252,7 +252,7 @@ defmodule FeistelCipher.Migration do
   * `opts` - (Keyword list, optional) Configuration options:
     * `:bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
     * `:key` - (Integer, optional) The encryption key. Must be between 0 and 2^31-1 (2,147,483,647). If not provided, a key is automatically generated from a hash of the prefix, table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
-    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions (`feistel` and `handle_feistel_encryption`) are located. This should match the `prefix` used when running `FeistelCipher.Migration.up/1`. Defaults to "public".
+    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions (`feistel_encrypt` and `feistel_column_trigger`) are located. This should match the `functions_prefix` used when running `FeistelCipher.Migration.up/1`. Defaults to "public".
 
   ## Important Warning
 
@@ -308,7 +308,7 @@ defmodule FeistelCipher.Migration do
       BEFORE INSERT OR UPDATE
       ON "#{prefix}.#{table}"
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.handle_feistel_encryption(#{bits}, #{key}, '#{source}', '#{target}');
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{source}', '#{target}');
     """
   end
 
