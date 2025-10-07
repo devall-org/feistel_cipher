@@ -20,8 +20,8 @@ defmodule Mix.Tasks.FeistelCipher.Install.Docs do
     ```
 
     * `--repo` or `-r` — Specify an Ecto repo for FeistelCipher to use.
-    * `--prefix` or `-p` — Specify a prefix for the FeistelCipher schema, defaults to `#{FeistelCipher.default_prefix()}`
-    * `--seed` or `-s` — Specify the seed for the Feistel cipher, should be less than 2^31, defaults to `#{FeistelCipher.default_seed()}`
+    * `--functions-prefix` or `-p` — Specify the PostgreSQL schema prefix where the FeistelCipher functions will be created, defaults to `public`
+    * `--functions-salt` or `-s` — Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `#{FeistelCipher.default_functions_salt()}`
     """
   end
 end
@@ -43,12 +43,12 @@ if Code.ensure_loaded?(Igniter) do
         only: nil,
         positional: [],
         composes: [],
-        schema: [repo: :string, prefix: :string, seed: :integer],
+        schema: [repo: :string, functions_prefix: :string, functions_salt: :integer],
         defaults: [
-          prefix: FeistelCipher.default_prefix(),
-          seed: FeistelCipher.default_seed()
+          functions_prefix: "public",
+          functions_salt: FeistelCipher.default_functions_salt()
         ],
-        aliases: [r: :repo, p: :prefix, s: :seed],
+        aliases: [r: :repo, p: :functions_prefix, s: :functions_salt],
         required: []
       }
     end
@@ -62,18 +62,19 @@ if Code.ensure_loaded?(Igniter) do
         {:ok, repo} ->
           migration = """
           def up do
-            FeistelCipher.Migration.up(prefix: "#{opts[:prefix]}", seed: #{opts[:seed]})
+            FeistelCipher.Migration.up(functions_prefix: "#{opts[:functions_prefix]}", functions_salt: #{opts[:functions_salt]})
           end
 
           def down do
-            FeistelCipher.Migration.down(prefix: "#{opts[:prefix]}", seed: #{opts[:seed]})
+            FeistelCipher.Migration.down(functions_prefix: "#{opts[:functions_prefix]}")
           end
           """
 
+          # Feistel cipher first published on May 1, 1973 (Horst Feistel, "Cryptography and Computer Privacy", Scientific American)
           igniter
           |> Igniter.Project.Formatter.import_dep(:feistel_cipher)
           |> Igniter.Libs.Ecto.gen_migration(repo, "add_feistel_cipher",
-            timestamp: "19700101000000",
+            timestamp: "19730501000000",
             body: migration,
             on_exists: :skip
           )
