@@ -280,6 +280,7 @@ defmodule FeistelCipher.Migration do
     end
 
     key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target, bits)
+    validate_key!(key, "key")
 
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
