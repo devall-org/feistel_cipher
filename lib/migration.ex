@@ -354,10 +354,8 @@ defmodule FeistelCipher.Migration do
     "#{table}_encrypt_#{source}_to_#{target}_trigger"
   end
 
-  @max_key_value Bitwise.bsl(1, 31)
-
   defp validate_key!(key, name) do
-    unless key >= 0 and key < @max_key_value do
+    unless key >= 0 and key < Bitwise.bsl(1, 31) do
       raise ArgumentError, "#{name} must be between 0 and 2^31-1, got: #{key}"
     end
   end
