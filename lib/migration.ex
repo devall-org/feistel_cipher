@@ -253,6 +253,7 @@ defmodule FeistelCipher.Migration do
   * `source` - (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
   * `target` - (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
   * `bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
+  * `key` - (Integer, optional) The encryption key. If not provided, a key is automatically generated based on the table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
 
   ## Important Warning
 
@@ -265,15 +266,33 @@ defmodule FeistelCipher.Migration do
 
   For this reason, carefully consider your `bits` requirement before creating the initial trigger.
 
-  ## Example
+  ## Key Compatibility
 
+  When no key is explicitly provided, the encryption key is automatically generated from a hash of the table, source, target, and bits parameters.
+  If you need to recreate a trigger with the same key (to maintain data compatibility), you can either:
+  1. Use the same table, source, target, and bits parameters (automatic key generation)
+  2. Explicitly provide the original key using the `key` parameter
+
+  ## Examples
+
+      # Automatic key generation
       FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52)
 
+      # Explicit key for compatibility
+      FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52, 123456789)
+
   """
-  def up_for_encryption(table, source, target, bits \\ 52) do
+  def up_for_encryption(table, source, target, bits \\ 52, key \\ nil) do
     # The default is 52 for LiveView and JavaScript interoperability.
-    0 = rem(bits, 2)
-    key = FeistelCipher.encryption_key(table, source, target, bits)
+    if rem(bits, 2) != 0 do
+      raise ArgumentError, "bits must be an even number, got: #{bits}"
+    end
+
+    key = key || FeistelCipher.key(table, source, target, bits)
+
+    unless key >= 0 and key < 1 <<< 31 do
+      raise ArgumentError, "key must be between 0 and 2^31-1, got: #{key}"
+    end
 
     """
     CREATE TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}"
@@ -298,16 +317,34 @@ defmodule FeistelCipher.Migration do
   This function generates SQL that performs a **DANGEROUS** operation. The returned SQL includes safety guards
   that will prevent accidental execution. This operation will:
   - Remove the FeistelCipher trigger from the specified table
-  - Potentially break your application's encryption functionality
+  - Break the `source` -> `target` encryption for the specified table
   - May lead to data inconsistency if not handled properly
 
   **The generated SQL will NOT execute by default.** You must manually remove the safety guard (`RAISE EXCEPTION`)
   from the generated SQL after understanding the risks and confirming you really need to drop the trigger.
 
+  ## Key Compatibility and Safe Recreation
+
+  **If you plan to recreate the trigger after dropping it**, you must ensure key compatibility:
+
+  1. **Same Key (SAFE)**: If the new trigger uses the same key as the old one, existing encrypted data remains valid.
+     When no key is explicitly provided, the key is automatically generated based on `table`, `source`, `target`, and `bits` parameters.
+
+  2. **Different Key (REQUIRES MANUAL ACTION)**: If any of these parameters change, the key will be different:
+     - Find the original key from your previous migration
+     - Use `up_for_encryption/5` with the explicit `key` parameter:
+       ```elixir
+       FeistelCipher.Migration.up_for_encryption("posts", "seq", "id", 52, original_key)
+       ```
+
+  3. **Empty Table (SAFE)**: If the table has no data, you can safely use a new key by simply removing
+     the `RAISE EXCEPTION` block and proceeding with the new trigger.
+
   Before using this function, ensure you have:
   1. Proper database backups
-  2. A clear understanding of the impact on your application
-  3. A plan for handling existing encrypted data
+  2. A clear understanding of the key compatibility impact
+  3. The original key value if parameters have changed
+  4. Verified whether the table contains data
 
   ## Example
 
@@ -318,7 +355,7 @@ defmodule FeistelCipher.Migration do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This will break encryption for table "#{table}". Remove this RAISE EXCEPTION block to execute. See https://hexdocs.pm/feistel_cipher/0.5.0/FeistelCipher.Migration.html#down_for_encryption/3 for details.';
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the "#{source}" -> "#{target}" encryption for table "#{table}". Check key compatibility before proceeding. Remove this RAISE EXCEPTION block to execute. See FeistelCipher.Migration.down_for_encryption/3 documentation for details.';
     END
     $$;
 
