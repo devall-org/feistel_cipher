@@ -20,8 +20,8 @@ defmodule Mix.Tasks.FeistelCipher.Install.Docs do
     ```
 
     * `--repo` or `-r` — Specify an Ecto repo for FeistelCipher to use.
-    * `--prefix` or `-p` — Specify a prefix for the FeistelCipher schema, defaults to `public`
-    * `--seed` or `-s` — Specify the seed for the Feistel cipher, should be less than 2^31, defaults to `#{FeistelCipher.default_seed()}`
+    * `--functions-prefix` or `-p` — Specify the PostgreSQL schema prefix where the FeistelCipher functions will be created, defaults to `public`
+    * `--cipher-salt` or `-s` — Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `#{FeistelCipher.default_cipher_salt()}`
     """
   end
 end
@@ -43,12 +43,12 @@ if Code.ensure_loaded?(Igniter) do
         only: nil,
         positional: [],
         composes: [],
-        schema: [repo: :string, prefix: :string, seed: :integer],
+        schema: [repo: :string, functions_prefix: :string, cipher_salt: :integer],
         defaults: [
-          prefix: "public",
-          seed: FeistelCipher.default_seed()
+          functions_prefix: "public",
+          cipher_salt: FeistelCipher.default_cipher_salt()
         ],
-        aliases: [r: :repo, p: :prefix, s: :seed],
+        aliases: [r: :repo, p: :functions_prefix, s: :cipher_salt],
         required: []
       }
     end
@@ -62,11 +62,11 @@ if Code.ensure_loaded?(Igniter) do
         {:ok, repo} ->
           migration = """
           def up do
-            FeistelCipher.Migration.up(prefix: "#{opts[:prefix]}", seed: #{opts[:seed]})
+            FeistelCipher.Migration.up(functions_prefix: "#{opts[:functions_prefix]}", cipher_salt: #{opts[:cipher_salt]})
           end
 
           def down do
-            FeistelCipher.Migration.down(prefix: "#{opts[:prefix]}", seed: #{opts[:seed]})
+            FeistelCipher.Migration.down(functions_prefix: "#{opts[:functions_prefix]}")
           end
           """
 

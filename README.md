@@ -40,8 +40,8 @@ mix igniter.install feistel_cipher
     This command will generate a migration file in your `priv/repo/migrations` directory. You can customize the installation with the following options:
 
     * `--repo` or `-r`: Specify an Ecto repo for FeistelCipher to use.
-    * `--prefix` or `-p`: Specify a prefix for the FeistelCipher schema, defaults to `public`.
-    * `--seed` or `-p`: Specify the seed for the Feistel cipher, should be less than 2^31, defaults to `1_076_943_109`.
+    * `--functions-prefix` or `-p`: Specify the PostgreSQL schema prefix where the FeistelCipher functions will be created, defaults to `public`.
+    * `--cipher-salt` or `-s`: Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `1_076_943_109`.
 
 
 ## Example Ecto Schema

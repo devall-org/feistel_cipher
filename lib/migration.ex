@@ -74,7 +74,7 @@ defmodule FeistelCipher.Migration do
 
   * `opts` - (Keyword list, optional) Configuration options:
     * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions will be created. Defaults to "public".
-    * `:seed` - (Integer, optional) The seed value for the Feistel cipher function. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_seed()`.
+    * `:cipher_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_cipher_salt()`.
 
   ## Example
 
@@ -82,19 +82,19 @@ defmodule FeistelCipher.Migration do
 
       FeistelCipher.Migration.up(functions_prefix: "payments")
 
-  Run migrations with a custom seed:
+  Run migrations with a custom cipher salt:
 
-      FeistelCipher.Migration.up(functions_prefix: "payments", seed: 123456789)
+      FeistelCipher.Migration.up(functions_prefix: "payments", cipher_salt: 123456789)
 
   """
   def up(opts \\ []) when is_list(opts) do
     import Bitwise
 
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
-    seed = Keyword.get(opts, :seed, FeistelCipher.default_seed())
+    cipher_salt = Keyword.get(opts, :cipher_salt, FeistelCipher.default_cipher_salt())
 
-    unless seed >= 0 and seed < Bitwise.bsl(1, 31) do
-      raise ArgumentError, "seed must be between 0 and 2^31-1, got: #{seed}"
+    unless cipher_salt >= 0 and cipher_salt < Bitwise.bsl(1, 31) do
+      raise ArgumentError, "cipher_salt must be between 0 and 2^31-1, got: #{cipher_salt}"
     end
 
     execute("CREATE SCHEMA IF NOT EXISTS \"#{functions_prefix}\"")
@@ -137,7 +137,7 @@ defmodule FeistelCipher.Migration do
 
         WHILE i < 4 LOOP
           a[i + 1] := b[i];
-          b[i + 1] := a[i] # ((((b[i] # #{seed}) * #{seed}) # key) & half_mask);
+          b[i + 1] := a[i] # ((((b[i] # #{cipher_salt}) * #{cipher_salt}) # key) & half_mask);
 
           i := i + 1;
         END LOOP;
