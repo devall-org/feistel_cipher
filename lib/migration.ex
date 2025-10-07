@@ -100,7 +100,7 @@ defmodule FeistelCipher.Migration do
       prefix: prefix,
       quoted_prefix: quoted_prefix,
       seed: seed
-    } = FeistelCipher.with_defaults(opts)
+    } = up_opts_with_defaults(opts)
 
     if seed <= 0 or seed >= 1 <<< 31 do
       raise "feistel seed must be greater than 0 and less than 2^31"
@@ -288,14 +288,14 @@ defmodule FeistelCipher.Migration do
       raise ArgumentError, "bits must be an even number, got: #{bits}"
     end
 
-    key = key || FeistelCipher.key(table, source, target, bits)
+    key = key || generate_key(table, source, target, bits)
 
     unless key >= 0 and key < 1 <<< 31 do
       raise ArgumentError, "key must be between 0 and 2^31-1, got: #{key}"
     end
 
     """
-    CREATE TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}"
+    CREATE TRIGGER "#{trigger_name(table, source, target)}"
       BEFORE INSERT OR UPDATE
       ON "#{table}"
       FOR EACH ROW
@@ -359,7 +359,29 @@ defmodule FeistelCipher.Migration do
     END
     $$;
 
-    DROP TRIGGER "#{FeistelCipher.trigger_name(table, source, target)}" ON "#{table}";
+    DROP TRIGGER "#{trigger_name(table, source, target)}" ON "#{table}";
     """
+  end
+
+  defp generate_key(table, source, target, bits) do
+    <<key::31, _::481>> = :crypto.hash(:sha512, "#{table}_#{source}_#{target}_#{bits}")
+    key
+  end
+
+  defp trigger_name(table, source, target) do
+    "#{table}_encrypt_#{source}_to_#{target}_trigger"
+  end
+
+  defp up_opts_with_defaults(opts) do
+    opts =
+      Enum.into(opts, %{
+        prefix: FeistelCipher.default_prefix(),
+        seed: FeistelCipher.default_seed()
+      })
+
+    opts
+    |> Map.put_new(:create_schema, opts.prefix != FeistelCipher.default_prefix())
+    |> Map.put(:quoted_prefix, inspect(opts.prefix))
+    |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
   end
 end
