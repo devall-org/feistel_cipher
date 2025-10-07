@@ -20,7 +20,7 @@ defmodule Mix.Tasks.FeistelCipher.Install.Docs do
     ```
 
     * `--repo` or `-r` — Specify an Ecto repo for FeistelCipher to use.
-    * `--prefix` or `-p` — Specify a prefix for the FeistelCipher schema, defaults to `#{FeistelCipher.default_prefix()}`
+    * `--prefix` or `-p` — Specify a prefix for the FeistelCipher schema, defaults to `public`
     * `--seed` or `-s` — Specify the seed for the Feistel cipher, should be less than 2^31, defaults to `#{FeistelCipher.default_seed()}`
     """
   end
@@ -45,7 +45,7 @@ if Code.ensure_loaded?(Igniter) do
         composes: [],
         schema: [repo: :string, prefix: :string, seed: :integer],
         defaults: [
-          prefix: FeistelCipher.default_prefix(),
+          prefix: "public",
           seed: FeistelCipher.default_seed()
         ],
         aliases: [r: :repo, p: :prefix, s: :seed],

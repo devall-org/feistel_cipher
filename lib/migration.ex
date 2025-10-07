@@ -290,7 +290,7 @@ defmodule FeistelCipher.Migration do
 
     key = key || generate_key(table, source, target, bits)
 
-    unless key >= 0 and key < 1 <<< 31 do
+    unless key >= 0 and key < Bitwise.bsl(1, 31) do
       raise ArgumentError, "key must be between 0 and 2^31-1, got: #{key}"
     end
 
@@ -375,12 +375,12 @@ defmodule FeistelCipher.Migration do
   defp up_opts_with_defaults(opts) do
     opts =
       Enum.into(opts, %{
-        prefix: FeistelCipher.default_prefix(),
+        prefix: "public",
         seed: FeistelCipher.default_seed()
       })
 
     opts
-    |> Map.put_new(:create_schema, opts.prefix != FeistelCipher.default_prefix())
+    |> Map.put_new(:create_schema, opts.prefix != "public")
     |> Map.put(:quoted_prefix, inspect(opts.prefix))
     |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
   end
