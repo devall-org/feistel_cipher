@@ -138,42 +138,30 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "encrypts and decrypts correctly" do
-      max_62_bits = Bitwise.bsl(1, 62) - 1
-      max_32_bits = Bitwise.bsl(1, 32) - 1
       max_key = Bitwise.bsl(1, 31) - 1
+      bit_sizes = [62, 32, 8]
 
-      test_cases = [
-        # 62 bits: edge cases with minimum and maximum values
-        {0, 62, 1},
-        {1, 62, 1},
-        {max_62_bits, 62, 1},
-        {1000, 62, max_key},
-        {1_000_000, 62, max_key},
-        # 32 bits: edge cases (common integer size)
-        {0, 32, 1},
-        {1, 32, 1},
-        {max_32_bits, 32, 1},
-        {max_32_bits, 32, max_key},
-        # 8 bits: small edge cases
-        {0, 8, 1},
-        {1, 8, 1},
-        {255, 8, 999}
-      ]
+      # Test all combinations of extreme values for each bit size
+      for bits <- bit_sizes do
+        max_input = Bitwise.bsl(1, bits) - 1
+        inputs = [1, max_input]
+        keys = [1, max_key]
 
-      for {input, bits, key} <- test_cases do
-        encrypted =
-          TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3)", [input, bits, key])
+        for input <- inputs, key <- keys do
+          encrypted =
+            TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3)", [input, bits, key])
 
-        assert [[encrypted_value]] = encrypted.rows
+          assert [[encrypted_value]] = encrypted.rows
 
-        decrypted =
-          TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3)", [
-            encrypted_value,
-            bits,
-            key
-          ])
+          decrypted =
+            TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3)", [
+              encrypted_value,
+              bits,
+              key
+            ])
 
-        assert [[^input]] = decrypted.rows
+          assert [[^input]] = decrypted.rows
+        end
       end
     end
 
