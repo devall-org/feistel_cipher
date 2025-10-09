@@ -139,18 +139,24 @@ defmodule FeistelCipher.MigrationTest do
 
     test "encrypts and decrypts correctly" do
       max_62_bits = Bitwise.bsl(1, 62) - 1
+      max_32_bits = Bitwise.bsl(1, 32) - 1
       max_key = Bitwise.bsl(1, 31) - 1
 
       test_cases = [
-        # Edge cases: minimum and maximum values
+        # 62 bits: edge cases with minimum and maximum values
         {0, 62, 1},
         {1, 62, 1},
         {max_62_bits, 62, 1},
-        # Different key values
         {1000, 62, max_key},
         {1_000_000, 62, max_key},
-        # Various bit sizes
-        {100, 32, 12345},
+        # 32 bits: edge cases (common integer size)
+        {0, 32, 1},
+        {1, 32, 1},
+        {max_32_bits, 32, 1},
+        {max_32_bits, 32, max_key},
+        # 8 bits: small edge cases
+        {0, 8, 1},
+        {1, 8, 1},
         {255, 8, 999}
       ]
 
@@ -233,7 +239,9 @@ defmodule FeistelCipher.MigrationTest do
           encrypted = TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 1)", [input, bits])
           assert [[encrypted_value]] = encrypted.rows
 
-          decrypted = TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 1)", [encrypted_value, bits])
+          decrypted =
+            TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 1)", [encrypted_value, bits])
+
           assert [[^input]] = decrypted.rows
         end
       end
