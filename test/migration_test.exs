@@ -139,14 +139,16 @@ defmodule FeistelCipher.MigrationTest do
 
     test "encrypts and decrypts correctly" do
       max_key = Bitwise.bsl(1, 31) - 1
+      mid_key = div(max_key, 2)
       # Test all valid even bit sizes from 2 to 62
       bit_sizes = Enum.to_list(2..62//2)
 
-      # Test all combinations of extreme values for each bit size
+      # Test all combinations of extreme and middle values for each bit size
       for bits <- bit_sizes do
         max_input = Bitwise.bsl(1, bits) - 1
-        inputs = [1, max_input]
-        keys = [1, max_key]
+        mid_input = div(max_input, 2)
+        inputs = [1, mid_input, max_input]
+        keys = [1, mid_key, max_key]
 
         for input <- inputs, key <- keys do
           encrypted =
