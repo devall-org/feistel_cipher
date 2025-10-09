@@ -139,8 +139,8 @@ defmodule FeistelCipher.MigrationTest do
 
     test "encrypts and decrypts correctly" do
       max_key = Bitwise.bsl(1, 31) - 1
-      # Test all valid even bit sizes from 62 down to 2
-      bit_sizes = Enum.to_list(62..2//-2)
+      # Test all valid even bit sizes from 2 to 62
+      bit_sizes = Enum.to_list(2..62//2)
 
       # Test all combinations of extreme values for each bit size
       for bits <- bit_sizes do
