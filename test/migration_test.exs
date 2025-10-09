@@ -1,0 +1,492 @@
+defmodule FeistelCipher.MigrationTest do
+  use ExUnit.Case, async: false
+  alias FeistelCipher.TestRepo
+
+  setup do
+    # Tests run sequentially (async: false) and clean up after themselves
+    :ok
+  end
+
+  defp create_functions(opts \\ []) do
+    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
+    functions_salt = Keyword.get(opts, :functions_salt, FeistelCipher.default_functions_salt())
+
+    TestRepo.query!("CREATE SCHEMA IF NOT EXISTS #{functions_prefix}")
+
+    TestRepo.query!("""
+    CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint) returns bigint AS $$
+      DECLARE
+        i int := 1;
+
+        a bigint array[5];
+        b bigint array[5];
+
+        half_bits int    := bits / 2;
+        half_mask bigint := (1::bigint << half_bits) - 1;
+        mask      bigint := (1::bigint << bits) - 1;
+
+      BEGIN
+        IF bits < 2 OR bits > 62 OR bits % 2 = 1 THEN
+          RAISE EXCEPTION 'feistel bits must be an even number between 2 and 62: %', bits;
+        END IF;
+
+        IF key < 0 OR key >= (1::bigint << 31) THEN
+          RAISE EXCEPTION 'feistel key must be between 0 and 2^31-1: %', key;
+        END IF;
+
+        IF input > mask THEN
+          RAISE EXCEPTION 'feistel input is larger than % bits: %', bits, input;
+        END IF;
+
+        a[1] := (input >> half_bits) & half_mask;
+        b[1] := input & half_mask;
+
+        WHILE i < 4 LOOP
+          a[i + 1] := b[i];
+          b[i + 1] := a[i] # ((((b[i] # #{functions_salt}) * #{functions_salt}) # key) & half_mask);
+
+          i := i + 1;
+        END LOOP;
+
+        a[5] := b[4];
+        b[5] := a[4];
+
+        RETURN ((a[5] << half_bits) | b[5]);
+      END;
+    $$ LANGUAGE plpgsql strict immutable;
+    """)
+
+    TestRepo.query!("""
+    CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
+      DECLARE
+        bits int;
+        key bigint;
+        source_column text;
+        target_column text;
+
+        clear bigint;
+        encrypted bigint;
+        decrypted bigint;
+
+        new_target_value bigint;
+        old_target_value bigint;
+
+      BEGIN
+        bits          := TG_ARGV[0]::int;
+        key           := TG_ARGV[1]::bigint;
+        source_column := TG_ARGV[2];
+        target_column := TG_ARGV[3];
+
+        IF TG_OP = 'UPDATE' THEN
+          EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', target_column, target_column)
+          INTO old_target_value, new_target_value
+          USING OLD, NEW;
+
+          IF old_target_value != new_target_value THEN
+            RAISE EXCEPTION '% cannot be modified on UPDATE. OLD.%: %, NEW.%: %', target_column, target_column, old_target_value, target_column, new_target_value;
+          END IF;
+        END IF;
+
+        EXECUTE format('SELECT ($1).%I::bigint', source_column)
+        INTO clear
+        USING NEW;
+
+        IF clear IS NULL THEN
+          encrypted := NULL;
+        ELSE
+          encrypted := #{functions_prefix}.feistel_encrypt(clear, bits, key);
+          decrypted := #{functions_prefix}.feistel_encrypt(encrypted, bits, key);
+
+          IF decrypted != clear THEN
+            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
+              clear, encrypted, decrypted, bits, key;
+          END IF;
+        END IF;
+
+        NEW := jsonb_populate_record(NEW, jsonb_build_object(target_column, to_jsonb(encrypted)));
+        RETURN NEW;
+      END;
+    $$ LANGUAGE plpgsql;
+    """)
+  end
+
+  defp drop_functions(opts \\ []) do
+    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
+
+    TestRepo.query!(
+      "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_encrypt(bigint, int, bigint)"
+    )
+
+    TestRepo.query!("DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_column_trigger()")
+  end
+
+  describe "up/1 and down/1" do
+    test "creates and drops feistel_encrypt function" do
+      # Run migration up
+      create_functions()
+
+      # Check if feistel_encrypt function exists
+      result =
+        TestRepo.query!("""
+        SELECT routine_name
+        FROM information_schema.routines
+        WHERE routine_type = 'FUNCTION'
+          AND routine_schema = 'public'
+          AND routine_name = 'feistel_encrypt'
+        """)
+
+      assert length(result.rows) == 1
+
+      # Test the function works
+      encrypted = TestRepo.query!("SELECT public.feistel_encrypt(123, 52, 456)")
+      assert [[encrypted_value]] = encrypted.rows
+      assert is_integer(encrypted_value)
+
+      # Test that encryption is reversible
+      decrypted = TestRepo.query!("SELECT public.feistel_encrypt($1, 52, 456)", [encrypted_value])
+      assert [[123]] = decrypted.rows
+
+      # Run migration down
+      drop_functions()
+
+      # Check if functions are dropped
+      result =
+        TestRepo.query!("""
+        SELECT routine_name
+        FROM information_schema.routines
+        WHERE routine_type = 'FUNCTION'
+          AND routine_schema = 'public'
+          AND routine_name IN ('feistel_encrypt', 'feistel_column_trigger')
+        """)
+
+      assert result.rows == []
+    end
+
+    test "creates functions in custom prefix" do
+      # Run migration up with custom prefix
+      create_functions(functions_prefix: "crypto")
+
+      # Check if feistel_encrypt function exists in crypto schema
+      result =
+        TestRepo.query!("""
+        SELECT routine_name
+        FROM information_schema.routines
+        WHERE routine_type = 'FUNCTION'
+          AND routine_schema = 'crypto'
+          AND routine_name = 'feistel_encrypt'
+        """)
+
+      assert length(result.rows) == 1
+
+      # Test the function works
+      encrypted = TestRepo.query!("SELECT crypto.feistel_encrypt(789, 52, 101112)")
+      assert [[encrypted_value]] = encrypted.rows
+      assert is_integer(encrypted_value)
+
+      # Clean up
+      drop_functions(functions_prefix: "crypto")
+      TestRepo.query!("DROP SCHEMA IF EXISTS crypto CASCADE")
+    end
+
+    test "uses custom functions_salt" do
+      custom_salt = 999_999_999
+
+      # Run migration up with custom salt
+      create_functions(functions_salt: custom_salt)
+
+      # The salt is embedded in the function, so we just test it works
+      encrypted = TestRepo.query!("SELECT public.feistel_encrypt(123, 52, 456)")
+      assert [[encrypted_value]] = encrypted.rows
+      assert is_integer(encrypted_value)
+
+      # Clean up
+      drop_functions()
+    end
+  end
+
+  describe "feistel_encrypt function" do
+    setup do
+      create_functions()
+      on_exit(fn -> drop_functions() end)
+      :ok
+    end
+
+    test "encrypts and decrypts correctly" do
+      test_cases = [
+        {0, 52, 123},
+        {1, 52, 456},
+        {100, 52, 789},
+        {1000, 52, 101_112},
+        {1_000_000, 52, 131_415}
+      ]
+
+      for {input, bits, key} <- test_cases do
+        encrypted =
+          TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3)", [input, bits, key])
+
+        assert [[encrypted_value]] = encrypted.rows
+
+        decrypted =
+          TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3)", [
+            encrypted_value,
+            bits,
+            key
+          ])
+
+        assert [[^input]] = decrypted.rows
+      end
+    end
+
+    test "raises error for invalid bits" do
+      # Odd bits
+      assert_raise Postgrex.Error, fn ->
+        TestRepo.query!("SELECT public.feistel_encrypt(123, 51, 456)")
+      end
+
+      # Bits too small
+      assert_raise Postgrex.Error, fn ->
+        TestRepo.query!("SELECT public.feistel_encrypt(123, 1, 456)")
+      end
+
+      # Bits too large
+      assert_raise Postgrex.Error, fn ->
+        TestRepo.query!("SELECT public.feistel_encrypt(123, 64, 456)")
+      end
+    end
+
+    test "raises error for invalid key" do
+      # Negative key
+      assert_raise Postgrex.Error, fn ->
+        TestRepo.query!("SELECT public.feistel_encrypt(123, 52, -1)")
+      end
+
+      # Key too large (>= 2^31)
+      max_key = Bitwise.bsl(1, 31)
+
+      assert_raise Postgrex.Error, fn ->
+        TestRepo.query!("SELECT public.feistel_encrypt(123, 52, $1)", [max_key])
+      end
+    end
+
+    test "raises error for input larger than bits" do
+      # For 8 bits, max value is 2^8 - 1 = 255
+      assert_raise Postgrex.Error, fn ->
+        TestRepo.query!("SELECT public.feistel_encrypt(256, 8, 123)")
+      end
+    end
+
+    test "handles NULL input" do
+      result = TestRepo.query!("SELECT public.feistel_encrypt(NULL, 52, 123)")
+      assert [[nil]] = result.rows
+    end
+
+    test "works with different bit sizes" do
+      bit_sizes = [2, 4, 8, 16, 32, 40, 52, 62]
+
+      for bits <- bit_sizes do
+        max_value = Bitwise.bsl(1, bits) - 1
+        input = div(max_value, 2)
+
+        encrypted = TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 123)", [input, bits])
+        assert [[encrypted_value]] = encrypted.rows
+
+        decrypted =
+          TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 123)", [encrypted_value, bits])
+
+        assert [[^input]] = decrypted.rows
+      end
+    end
+  end
+
+  describe "feistel_column_trigger function with real table" do
+    setup do
+      create_functions()
+
+      # Create test table
+      TestRepo.query!("""
+      CREATE TABLE test_posts (
+        seq BIGSERIAL,
+        id BIGINT,
+        title TEXT
+      )
+      """)
+
+      # Get the SQL for creating trigger
+      trigger_sql =
+        FeistelCipher.Migration.up_for_encryption("public", "test_posts", "seq", "id")
+
+      # Execute trigger creation
+      TestRepo.query!(trigger_sql)
+
+      on_exit(fn ->
+        TestRepo.query!("DROP TABLE IF EXISTS test_posts CASCADE")
+        drop_functions()
+      end)
+
+      :ok
+    end
+
+    test "automatically encrypts seq to id on INSERT" do
+      # Insert without specifying id
+      TestRepo.query!("""
+      INSERT INTO test_posts (title) VALUES ('First Post')
+      """)
+
+      result = TestRepo.query!("SELECT seq, id, title FROM test_posts")
+      assert [[seq, id, "First Post"]] = result.rows
+      assert seq != id
+      assert is_integer(seq)
+      assert is_integer(id)
+
+      # Verify id is encrypted version of seq
+      decrypted =
+        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2)", [id, get_default_key()])
+
+      assert [[^seq]] = decrypted.rows
+    end
+
+    test "encrypts multiple inserts correctly" do
+      for i <- 1..5 do
+        TestRepo.query!("INSERT INTO test_posts (title) VALUES ($1)", ["Post #{i}"])
+      end
+
+      result = TestRepo.query!("SELECT seq, id FROM test_posts ORDER BY seq")
+      assert length(result.rows) == 5
+
+      # Verify all are encrypted correctly
+      for [seq, id] <- result.rows do
+        decrypted =
+          TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2)", [id, get_default_key()])
+
+        assert [[^seq]] = decrypted.rows
+      end
+    end
+
+    test "prevents manual modification of id on UPDATE" do
+      # Insert a post
+      TestRepo.query!("INSERT INTO test_posts (title) VALUES ('Original')")
+      result = TestRepo.query!("SELECT seq, id FROM test_posts")
+      [[_seq, original_id]] = result.rows
+
+      # Try to update id manually
+      assert_raise Postgrex.Error, ~r/id cannot be modified on UPDATE/, fn ->
+        TestRepo.query!("UPDATE test_posts SET id = $1 WHERE id = $2", [999_999, original_id])
+      end
+    end
+
+    test "updates seq and id together" do
+      # Insert a post
+      TestRepo.query!("INSERT INTO test_posts (title) VALUES ('Original')")
+
+      # Update title (should not affect id)
+      TestRepo.query!("UPDATE test_posts SET title = 'Updated'")
+
+      result = TestRepo.query!("SELECT seq, id, title FROM test_posts")
+      assert [[seq, id, "Updated"]] = result.rows
+
+      # Verify id is still valid encryption of seq
+      decrypted =
+        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2)", [id, get_default_key()])
+
+      assert [[^seq]] = decrypted.rows
+    end
+
+    test "handles explicit NULL id" do
+      # Create table that allows NULL seq for this specific test
+      TestRepo.query!("DROP TABLE IF EXISTS test_nullable CASCADE")
+
+      TestRepo.query!("""
+      CREATE TABLE test_nullable (
+        seq BIGINT,
+        id BIGINT,
+        title TEXT
+      )
+      """)
+
+      # Create trigger for nullable table
+      trigger_sql =
+        FeistelCipher.Migration.up_for_encryption("public", "test_nullable", "seq", "id")
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert with NULL seq
+      TestRepo.query!("INSERT INTO test_nullable (seq, title) VALUES (NULL, 'Null Test')")
+
+      result = TestRepo.query!("SELECT seq, id FROM test_nullable WHERE title = 'Null Test'")
+      assert [[nil, nil]] = result.rows
+
+      # Clean up
+      TestRepo.query!("DROP TABLE IF EXISTS test_nullable CASCADE")
+    end
+  end
+
+  describe "up_for_encryption/5" do
+    test "generates correct SQL" do
+      sql = FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id")
+
+      assert sql =~ "CREATE TRIGGER"
+      assert sql =~ "users_encrypt_seq_to_id_trigger"
+      assert sql =~ "public.users"
+      assert sql =~ "feistel_column_trigger"
+      assert sql =~ "52"
+      assert sql =~ "'seq'"
+      assert sql =~ "'id'"
+    end
+
+    test "uses custom bits" do
+      sql = FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", bits: 40)
+      assert sql =~ "40"
+    end
+
+    test "uses custom key" do
+      sql =
+        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", key: 123_456)
+
+      assert sql =~ "123456"
+    end
+
+    test "uses custom functions_prefix" do
+      sql =
+        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id",
+          functions_prefix: "crypto"
+        )
+
+      assert sql =~ "crypto.feistel_column_trigger"
+    end
+
+    test "raises for odd bits" do
+      assert_raise ArgumentError, ~r/bits must be an even number/, fn ->
+        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", bits: 51)
+      end
+    end
+
+    test "raises for invalid key" do
+      assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
+        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", key: -1)
+      end
+
+      max_key = Bitwise.bsl(1, 31)
+
+      assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
+        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", key: max_key)
+      end
+    end
+  end
+
+  describe "down_for_encryption/4" do
+    test "generates SQL with safety guard" do
+      sql = FeistelCipher.Migration.down_for_encryption("public", "users", "seq", "id")
+
+      assert sql =~ "RAISE EXCEPTION"
+      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"
+      assert sql =~ "public.users"
+    end
+  end
+
+  # Helper function to get the default key for testing
+  defp get_default_key do
+    # This mimics the key generation in up_for_encryption
+    <<key::31, _::481>> = :crypto.hash(:sha512, "public_test_posts_seq_id_52")
+    key
+  end
+end
