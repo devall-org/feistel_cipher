@@ -39,4 +39,3 @@ defmodule FeistelCipher.TestMigrations do
     end
   end
 end
-
