@@ -5,8 +5,7 @@ config :feistel_cipher, FeistelCipher.TestRepo,
   password: "postgres",
   hostname: "localhost",
   database: "feistel_cipher_test",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  priv: "test/support"
+  pool: Ecto.Adapters.SQL.Sandbox
 
 config :feistel_cipher, ecto_repos: [FeistelCipher.TestRepo]
 
