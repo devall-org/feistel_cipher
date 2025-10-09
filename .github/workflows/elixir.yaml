@@ -110,6 +110,10 @@ jobs:
       - name: Check Formatting
         run: mix format --check-formatted
 
+      # Step: Create the test database
+      - name: Create test database
+        run: mix ecto.create
+
       # Step: Execute the tests.
       - name: Run tests
         run: mix test
