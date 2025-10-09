@@ -152,6 +152,7 @@ defmodule FeistelCipher.MigrationTest do
 
       for {input, bits, key, expected} <- golden_cases do
         result = TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3)", [input, bits, key])
+
         assert [[^expected]] = result.rows,
                "Encryption output changed! This breaks backward compatibility.\n" <>
                  "Input: #{input}, Bits: #{bits}, Key: #{key}\n" <>
