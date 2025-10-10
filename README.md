@@ -10,12 +10,13 @@ Unpredictable integer IDs - no UUIDs needed
 - Total record counts are exposed
 
 **Common Solutions & Issues**:
-- UUIDs: Poor database performance (index fragmentation, 16 bytes storage)
+- UUIDs: Fixed 36 chars for everything - overkill for most columns
 - Random integers: Collision risks, complex generation logic
 
 **This Library's Approach**:
 - Store sequential integers internally (fast, efficient indexing)
 - Expose encrypted integers externally (non-sequential, reversible)
+- **Adjustable bit size per column**: user_id = 40 bits (12 digits), post_id = 52 bits (16 digits)
 - Automatic encryption via database trigger
 
 ## How It Works
@@ -213,6 +214,8 @@ The `up_for_trigger/5` function accepts these options:
 
 - `prefix`, `table`, `source`, `target`: Table and column names (required)
 - `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
+  - **Choose different sizes per column**: Unlike UUIDs (fixed 36 chars), tailor each column's ID length
+  - Example: user_id = 40 bits (12 digits, 1T values), post_id = 52 bits (16 digits, 4.5Q values)
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
 - `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
