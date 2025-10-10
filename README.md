@@ -46,48 +46,48 @@ The Feistel cipher is **self-inverse**: applying the same function twice returns
 
 **Mathematical Proof:**
 
-Let's denote the input as $(L_0, R_0)$ and the round function as $F(x)$.
+Let's denote the input as $(L_1, R_1)$ and the round function as $F(x)$.
 
 **First application (Encryption):**
 
 $$
 \begin{aligned}
-L_1 &= R_0, & R_1 &= L_0 \oplus F(R_0) \\
 L_2 &= R_1, & R_2 &= L_1 \oplus F(R_1) \\
 L_3 &= R_2, & R_3 &= L_2 \oplus F(R_2) \\
 L_4 &= R_3, & R_4 &= L_3 \oplus F(R_3) \\
-\text{Output} &= (R_4, L_4)
+L_5 &= R_4, & R_5 &= L_4 \oplus F(R_4) \\
+\text{Output} &= (R_5, L_5)
 \end{aligned}
 $$
 
-**Second application (Decryption) - Starting with $(R_4, L_4)$:**
+**Second application (Decryption) - Starting with $(R_5, L_5)$:**
 
 $$
 \begin{aligned}
-L_1' &= L_4, & R_1' &= R_4 \oplus F(L_4) \\
+L_2' &= L_5, & R_2' &= R_5 \oplus F(L_5) \\
+&= L_5, & &= R_5 \oplus F(R_4) \\
+&= L_5, & &= (L_4 \oplus F(R_4)) \oplus F(R_4) \\
+&= L_5, & &= L_4 \quad \text{(XOR cancellation)} \\
+\\
+L_3' &= R_2' = L_4, & R_3' &= L_2' \oplus F(R_2') \\
+&= L_4, & &= L_5 \oplus F(L_4) \\
 &= L_4, & &= R_4 \oplus F(R_3) \\
 &= L_4, & &= (L_3 \oplus F(R_3)) \oplus F(R_3) \\
 &= L_4, & &= L_3 \quad \text{(XOR cancellation)} \\
 \\
-L_2' &= R_1' = L_3, & R_2' &= L_1' \oplus F(R_1') \\
+L_4' &= R_3' = L_3, & R_4' &= L_3' \oplus F(R_3') \\
 &= L_3, & &= L_4 \oplus F(L_3) \\
 &= L_3, & &= R_3 \oplus F(R_2) \\
 &= L_3, & &= (L_2 \oplus F(R_2)) \oplus F(R_2) \\
-&= L_3, & &= L_2 \quad \text{(XOR cancellation)} \\
+&= L_3, & &= L_2 = R_1 \\
 \\
-L_3' &= R_2' = L_2, & R_3' &= L_2' \oplus F(R_2') \\
-&= L_2, & &= L_3 \oplus F(L_2) \\
-&= L_2, & &= R_2 \oplus F(R_1) \\
-&= L_2, & &= (L_1 \oplus F(R_1)) \oplus F(R_1) \\
-&= L_2, & &= L_1 = R_0 \\
+L_5' &= R_4' = R_1, & R_5' &= L_4' \oplus F(R_4') \\
+&= R_1, & &= L_3 \oplus F(R_1) \\
+&= R_1, & &= R_2 \oplus F(R_1) \\
+&= R_1, & &= (L_1 \oplus F(R_1)) \oplus F(R_1) \\
+&= R_1, & &= L_1 \quad \text{(XOR cancellation)} \\
 \\
-L_4' &= R_3' = R_0, & R_4' &= L_3' \oplus F(R_3') \\
-&= R_0, & &= L_2 \oplus F(R_0) \\
-&= R_0, & &= R_1 \oplus F(R_0) \\
-&= R_0, & &= (L_0 \oplus F(R_0)) \oplus F(R_0) \\
-&= R_0, & &= L_0 \quad \text{(XOR cancellation)} \\
-\\
-\text{Output} &= (R_4', L_4') = (L_0, R_0) \quad \checkmark
+\text{Output} &= (R_5', L_5') = (L_1, R_1) \quad \checkmark
 \end{aligned}
 $$
 
