@@ -15,13 +15,13 @@ Unpredictable integer IDs - no UUIDs needed
 
 **This Library's Approach**:
 - Store sequential integers internally (fast, efficient indexing)
-- Expose encrypted integers externally (non-sequential, reversible)
+- Expose encrypted integers externally (non-sequential, unpredictable)
 - **Adjustable bit size per column**: user_id = 40 bits (12 digits), post_id = 52 bits (16 digits)
 - Automatic encryption via database trigger
 
 ## How It Works
 
-The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a configurable Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
+The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a configurable Feistel network that transforms sequential integers into non-sequential encrypted integers with one-to-one mapping.
 
 <p align="center">
   <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram">
