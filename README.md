@@ -22,103 +22,9 @@ Generate non-sequential, unpredictable IDs while maintaining the performance ben
 
 The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a 4-round Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
 
-```mermaid
-flowchart TB
-    Input["Input: N bits"]
-    
-    subgraph Initial["Input Split"]
-        L0["L0<br/>(Left N/2 bits)"]
-        R0["R0<br/>(Right N/2 bits)"]
-    end
-    
-    subgraph Round1["Round 1"]
-        direction LR
-        XOR1["⊕"]
-        F1["F(R0)"]
-        L1["L1"]
-        R1["R1"]
-    end
-    
-    subgraph Round2["Round 2"]
-        direction LR
-        XOR2["⊕"]
-        F2["F(R1)"]
-        L2["L2"]
-        R2["R2"]
-    end
-    
-    subgraph Round3["Round 3"]
-        direction LR
-        XOR3["⊕"]
-        F3["F(R2)"]
-        L3["L3"]
-        R3["R3"]
-    end
-    
-    subgraph Round4["Round 4"]
-        direction LR
-        XOR4["⊕"]
-        F4["F(R3)"]
-        L4["L4"]
-        R4["R4"]
-    end
-    
-    subgraph Final["Final Swap"]
-        L5["L5"]
-        R5["R5"]
-    end
-    
-    Input --> Initial
-    
-    L0 --> XOR1
-    R0 --> F1
-    R0 -.Copy.-> L1
-    F1 --> XOR1
-    XOR1 --> R1
-    
-    L1 --> XOR2
-    R1 --> F2
-    R1 -.Copy.-> L2
-    F2 --> XOR2
-    XOR2 --> R2
-    
-    L2 --> XOR3
-    R2 --> F3
-    R2 -.Copy.-> L3
-    F3 --> XOR3
-    XOR3 --> R3
-    
-    L3 --> XOR4
-    R3 --> F4
-    R3 -.Copy.-> L4
-    F4 --> XOR4
-    XOR4 --> R4
-    
-    L4 --> R5
-    R4 --> L5
-    
-    L5 --> Output["Output: N bits"]
-    R5 --> Output
-    
-    style Input fill:#e1f5ff
-    style Output fill:#e1f5ff
-    style L0 fill:#ffe1e1
-    style R0 fill:#e1ffe1
-    style L1 fill:#ffe1e1
-    style R1 fill:#e1ffe1
-    style L2 fill:#ffe1e1
-    style R2 fill:#e1ffe1
-    style L3 fill:#ffe1e1
-    style R3 fill:#e1ffe1
-    style L4 fill:#ffe1e1
-    style R4 fill:#e1ffe1
-    style L5 fill:#ffe1e1
-    style R5 fill:#e1ffe1
-    style F1 fill:#fff4e1
-    style F2 fill:#fff4e1
-    style F3 fill:#fff4e1
-    style F4 fill:#fff4e1
-```
+<p align="center">
+  <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram" width="600">
+</p>
 
 ### Algorithm Details
 
@@ -144,7 +50,7 @@ Let's denote the input as $(L_0, R_0)$ and the round function as $F(x)$.
 
 **First application (Encryption):**
 
-```math
+$$
 \begin{aligned}
 L_1 &= R_0, & R_1 &= L_0 \oplus F(R_0) \\
 L_2 &= R_1, & R_2 &= L_1 \oplus F(R_1) \\
@@ -152,11 +58,11 @@ L_3 &= R_2, & R_3 &= L_2 \oplus F(R_2) \\
 L_4 &= R_3, & R_4 &= L_3 \oplus F(R_3) \\
 \text{Output} &= (R_4, L_4)
 \end{aligned}
-```
+$$
 
 **Second application (Decryption) - Starting with $(R_4, L_4)$:**
 
-```math
+$$
 \begin{aligned}
 L_1' &= L_4, & R_1' &= R_4 \oplus F(L_4) \\
 &= L_4, & &= R_4 \oplus F(R_3) \\
@@ -183,7 +89,7 @@ L_4' &= R_3' = R_0, & R_4' &= L_3' \oplus F(R_3') \\
 \\
 \text{Output} &= (R_4', L_4') = (L_0, R_0) \quad \checkmark
 \end{aligned}
-```
+$$
 
 **Key Insight:** The XOR operation's property $a \oplus b \oplus b = a$ ensures that each transformation is reversed when applied twice.
 
@@ -217,7 +123,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.8.0"}]
+  [{:feistel_cipher, "~> 0.8.1"}]
 end
 ```
 
