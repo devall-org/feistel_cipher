@@ -50,8 +50,8 @@ Benchee.run(
         key
       ])
     end,
-    "4 rounds (diagram)" => fn ->
-      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 4)", [
+    "2 rounds (diagram)" => fn ->
+      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 2)", [
         start_val,
         end_val,
         bits,
