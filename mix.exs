@@ -16,7 +16,17 @@ defmodule FeistelCipher.MixProject do
       homepage_url: "https://github.com/devall-org/feistel_cipher",
       docs: [
         main: "readme",
-        extras: ["README.md"]
+        extras: ["README.md"],
+        assets: %{"assets" => "assets"},
+        before_closing_body_tag: fn
+          :html ->
+            """
+            <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+            """
+
+          _ ->
+            ""
+        end
       ]
     ]
   end
@@ -49,7 +59,7 @@ defmodule FeistelCipher.MixProject do
       links: %{
         "GitHub" => "https://github.com/devall-org/feistel_cipher"
       },
-      files: ~w(lib mix.exs README.md LICENSE)
+      files: ~w(lib mix.exs README.md LICENSE assets)
     ]
   end
 end
