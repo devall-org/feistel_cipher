@@ -29,9 +29,9 @@ $$ LANGUAGE plpgsql;
 
 IO.puts("✓ Feistel functions created")
 
-# Test data - encrypting 10,000 values
+# Test data - encrypting 100,000 values
 start_val = 1
-end_val = 10_000
+end_val = 100_000
 bits = 52
 key = 987_654_321
 
