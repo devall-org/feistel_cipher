@@ -10,7 +10,7 @@ defmodule FeistelCipher.MixProject do
       consolidate_protocols: Mix.env() not in [:dev, :test],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      description: "A Ecto migration for Feistel cipher",
+      description: "An Ecto migration for Feistel cipher",
       package: package(),
       source_url: "https://github.com/devall-org/feistel_cipher",
       homepage_url: "https://github.com/devall-org/feistel_cipher",
@@ -45,9 +45,11 @@ defmodule FeistelCipher.MixProject do
     [
       name: "feistel_cipher",
       licenses: ["MIT"],
+      maintainers: ["Jechol Lee"],
       links: %{
         "GitHub" => "https://github.com/devall-org/feistel_cipher"
-      }
+      },
+      files: ~w(lib priv mix.exs README.md LICENSE)
     ]
   end
 end
