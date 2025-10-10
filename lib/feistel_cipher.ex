@@ -2,69 +2,25 @@ defmodule FeistelCipher do
   @moduledoc """
   Generate non-sequential IDs using Feistel cipher in PostgreSQL.
 
-  This module provides functions to set up and manage Feistel cipher functions
-  and triggers in your PostgreSQL database.
-
-  ## Usage
-
-  To use migrations in your application you'll need to generate an `Ecto.Migration` that wraps
-  calls to `FeistelCipher`:
-
-  ```bash
-  mix ecto.gen.migration add_feistel_cipher
-  ```
-
-  Open the generated migration in your editor and call the `up` and `down` functions:
+  ## Basic Usage
 
   ```elixir
   defmodule MyApp.Repo.Migrations.AddFeistelCipher do
     use Ecto.Migration
 
     def up, do: FeistelCipher.up_for_functions()
-
     def down, do: FeistelCipher.down_for_functions()
   end
   ```
 
-  This will run all of FeistelCipher's versioned migrations for your database.
-
-  Now, run the migration to create the functions:
-
-  ```bash
-  mix ecto.migrate
-  ```
-
-  ## Isolation with Prefixes
-
-  FeistelCipher supports namespacing through PostgreSQL schemas, also called "prefixes" in Ecto. With
-  prefixes your cipher functions can reside outside of your primary schema (usually public) and you can
-  have multiple separate cipher function sets.
-
-  To use a prefix you first have to specify it within your migration:
+  ## With Custom Prefix
 
   ```elixir
-  defmodule MyApp.Repo.Migrations.AddPrefixedFeistelCipherFunctions do
-    use Ecto.Migration
-
-    def up, do: FeistelCipher.up_for_functions(functions_prefix: "private")
-
-    def down, do: FeistelCipher.down_for_functions(functions_prefix: "private")
-  end
+  def up, do: FeistelCipher.up_for_functions(functions_prefix: "private")
+  def down, do: FeistelCipher.down_for_functions(functions_prefix: "private")
   ```
 
-  ## Migrating Without Ecto
-
-  If your application uses something other than Ecto for migrations, be it an external system or
-  another ORM, it may be helpful to create plain SQL migrations for FeistelCipher database schema changes.
-
-  The simplest mechanism for obtaining the SQL changes is to create the migration locally and run
-  `mix ecto.migrate --log-migrations-sql`. That will log all of the generated SQL, which you can
-  then paste into your migration system of choice.
-
-  Alternatively, if you'd like a more automated approach, try using the [feistel_id_migations_sql][sql]
-  project to generate `up` and `down` SQL migrations for you.
-
-  [sql]: https://github.com/btwb/feistel_id_migrations_sql
+  See function documentation for detailed options and examples.
   """
 
   use Ecto.Migration
@@ -79,11 +35,10 @@ defmodule FeistelCipher do
   @doc """
   Create FeistelCipher functions in the database.
 
-  ## Arguments
+  ## Options
 
-  * `opts` - (Keyword list, optional) Configuration options:
-    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions will be created. Defaults to "public".
-    * `:functions_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_functions_salt()`.
+  * `:functions_prefix` - Schema prefix for functions (default: "public").
+  * `:functions_salt` - Salt constant for cipher algorithm (default: `default_functions_salt()`). Must be 0 to 2^31-1.
   """
   def up_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
@@ -207,15 +162,11 @@ defmodule FeistelCipher do
   @doc """
   Drop FeistelCipher functions from the database.
 
-  ## Arguments
+  ⚠️ **Warning**: PostgreSQL will prevent this if any triggers still use these functions.
 
-  * `opts` - (Keyword list, optional) Configuration options:
-    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions are located. Defaults to "public".
+  ## Options
 
-  ## ⚠️ WARNING
-
-  This function drops all FeistelCipher core functions. **PostgreSQL will automatically prevent
-  this operation if any triggers are still using these functions**, returning a dependency error.
+  * `:functions_prefix` - Schema prefix where functions are located (default: "public").
   """
   def down_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
@@ -225,49 +176,18 @@ defmodule FeistelCipher do
   end
 
   @doc """
-  Returns the SQL for creating a trigger for a table to encrypt a `source` field to a `target` field.
+  Returns SQL to create a trigger that encrypts a `source` column to a `target` column.
 
-  ## Arguments
+  ## Options
 
-  * `prefix` - (String, required) The PostgreSQL schema prefix where the table resides.
-  * `table` - (String, required) The name of the table.
-  * `source` - (String, required) The name of the source column containing the `bigint` integer (typically from a `BIGSERIAL` column like `seq`).
-  * `target` - (String, required) The name of the target column to store the encrypted integer (typically the `BIGINT` primary key like `id`).
-  * `opts` - (Keyword list, optional) Configuration options:
-    * `:bits` - (Integer, optional) The number of bits for the Feistel cipher. Must be an even number, 62 or less. The default is 52 for LiveView and JavaScript interoperability.
-    * `:key` - (Integer, optional) The encryption key. Must be between 0 and 2^31-1 (2,147,483,647). If not provided, a key is automatically generated from a hash of the prefix, table, source, target, and bits parameters. Use this when you need to maintain compatibility with previously created triggers.
-    * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions (`feistel_encrypt` and `feistel_column_trigger`) are located. This should match the `functions_prefix` used when running `FeistelCipher.up/1`. Defaults to "public".
-
-  ## Important Warning
-
-  ⚠️ Once a table has been created with a specific `bits` value, you **cannot** change the `bits` setting later.
-  The Feistel cipher algorithm depends on the `bits` parameter, and changing it would make existing encrypted IDs
-  incompatible with the new cipher. If you need to change the `bits` value, you would need to:
-  1. Drop the existing trigger using `down_for_trigger/4`
-  2. Recreate all existing data with the new cipher
-  3. Set up the new trigger with the desired `bits` value
-
-  For this reason, carefully consider your `bits` requirement before creating the initial trigger.
-
-  ## Key Compatibility
-
-  When no key is explicitly provided, the encryption key is automatically generated from a hash of the prefix, table, source, target, and bits parameters.
-  If you need to recreate a trigger with the same key (to maintain data compatibility), you can either:
-  1. Use the same prefix, table, source, target, and bits parameters (automatic key generation)
-  2. Explicitly provide the original key using the `key` parameter
+  * `:bits` - Cipher bits (default: 52, max: 62, must be even). ⚠️ Cannot be changed after creation.
+  * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided.
+  * `:functions_prefix` - Schema where cipher functions are located (default: "public").
 
   ## Examples
 
-      # Automatic key generation (default bits: 52)
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
-
-      # With custom bits
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 40)
-
-      # Explicit key for compatibility
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 52, key: 123456789)
-
-      # When FeistelCipher functions are in a different prefix (e.g., "crypto" prefix)
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 40, key: 123456789)
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id", functions_prefix: "crypto")
 
   """
@@ -294,52 +214,27 @@ defmodule FeistelCipher do
   end
 
   @doc """
-  Returns the SQL for dropping a trigger for a table to encrypt a `source` field to a `target` field.
+  Returns SQL to drop a trigger. **DANGEROUS OPERATION**.
 
-  ## Arguments
+  The generated SQL includes a safety guard that prevents execution by default.
+  You must manually remove the `RAISE EXCEPTION` block after understanding the risks.
 
-  * `prefix` - (String, required) The PostgreSQL schema prefix where the table resides.
-  * `table` - (String, required) The name of the table.
-  * `source` - (String, required) The name of the source column.
-  * `target` - (String, required) The name of the target column.
+  ## ⚠️ Key Compatibility Warning
 
-  ## ⚠️ DANGER WARNING
+  If recreating the trigger:
+  - **Same key**: Use identical prefix/table/source/target/bits (auto-generates same key), or provide explicit `:key`
+  - **Different key**: Existing encrypted data becomes invalid
+  - **Empty table**: Safe to use new key
 
-  This function generates SQL that performs a **DANGEROUS** operation. The returned SQL includes safety guards
-  that will prevent accidental execution. This operation will:
-  - Remove the FeistelCipher trigger from the specified table
-  - Break the `source` -> `target` encryption for the specified table
-  - May lead to data inconsistency if not handled properly
-
-  **The generated SQL will NOT execute by default.** You must manually remove the safety guard (`RAISE EXCEPTION`)
-  from the generated SQL after understanding the risks and confirming you really need to drop the trigger.
-
-  ## Key Compatibility and Safe Recreation
-
-  **If you plan to recreate the trigger after dropping it**, you must ensure key compatibility:
-
-  1. **Same Key (SAFE)**: If the new trigger uses the same key as the old one, existing encrypted data remains valid.
-     When no key is explicitly provided, the key is automatically generated from a hash of the prefix, table, source, target, and bits parameters.
-
-  2. **Different Key (REQUIRES MANUAL ACTION)**: If any of these parameters change, the key will be different:
-     - Find the original key from your previous migration
-     - Use `up_for_trigger/5` with the explicit `:key` option:
-       ```elixir
-       FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 52, key: original_key)
-       ```
-
-  3. **Empty Table (SAFE)**: If the table has no data, you can safely use a new key by simply removing
-     the `RAISE EXCEPTION` block and proceeding with the new trigger.
-
-  Before using this function, ensure you have:
-  1. Proper database backups
-  2. A clear understanding of the key compatibility impact
-  3. The original key value if parameters have changed
-  4. Verified whether the table contains data
+  To find the original key, check your migration file where the trigger was created.
+  The key is in the generated SQL: `EXECUTE PROCEDURE ...feistel_column_trigger(bits, key, ...)`
 
   ## Example
 
       FeistelCipher.down_for_trigger("public", "posts", "seq", "id")
+
+      # If recreating with same key (find original_key from migration file)
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", key: original_key)
 
   """
   def down_for_trigger(prefix, table, source, target) do
