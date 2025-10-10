@@ -4,6 +4,59 @@ Database functions for Feistel cipher.
 
 This library provides Mix tasks and Ecto migrations to set up and manage Feistel cipher functions and triggers in your PostgreSQL database. Feistel cipher can be used to generate reversible, non-sequential IDs from sequential numbers.
 
+## How It Works
+
+The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a 4-round Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
+
+```mermaid
+graph TD
+    Start[Input N bits] --> Split[Split into L0 R0]
+    Split --> |"L0 (N/2 bits)"| Round1A[Round 1]
+    Split --> |"R0 (N/2 bits)"| Round1B[Round 1]
+    
+    Round1A --> |"L1 = R0"| Round2A[Round 2]
+    Round1B --> |"R1 = L0 ⊕ F R0"| Round2B[Round 2]
+    
+    Round2A --> |"L2 = R1"| Round3A[Round 3]
+    Round2B --> |"R2 = L1 ⊕ F R1"| Round3B[Round 3]
+    
+    Round3A --> |"L3 = R2"| Round4A[Round 4]
+    Round3B --> |"R3 = L2 ⊕ F R2"| Round4B[Round 4]
+    
+    Round4A --> |"L4 = R3"| Swap[Final Swap]
+    Round4B --> |"R4 = L3 ⊕ F R3"| Swap
+    
+    Swap --> |"L5 = R4"| Combine[Combine]
+    Swap --> |"R5 = L4"| Combine
+    
+    Combine --> Output[Output N bits]
+    
+    style Start fill:#e1f5ff
+    style Output fill:#e1f5ff
+    style Swap fill:#fff4e1
+```
+
+### Algorithm Details
+
+For each round, the Feistel function `F` is defined as:
+
+```
+F(x, key, salt) = (((x ⊕ salt) × salt) ⊕ key) & half_mask
+```
+
+Where:
+- `⊕` is XOR operation
+- `×` is multiplication
+- `&` is bitwise AND
+- `half_mask` ensures the result fits in N/2 bits
+
+### Key Properties
+
+1. **Reversible**: The same function encrypts and decrypts (self-inverse with 4 rounds + final swap)
+2. **Deterministic**: Same input always produces same output
+3. **Non-sequential**: Sequential inputs produce seemingly random outputs
+4. **Collision-free**: Different inputs always produce different outputs within the bit range
+
 ## Installation
 
 You can install FeistelCipher using `igniter` or by manually adding it to your dependencies.
