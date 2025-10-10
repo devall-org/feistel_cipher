@@ -20,11 +20,13 @@ Generate non-sequential, unpredictable IDs while maintaining the performance ben
 
 ## How It Works
 
-The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a 4-round Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
+The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a configurable Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
 
 <p align="center">
   <img src="assets/feistel-diagram-v2.png" alt="Feistel Cipher Diagram">
 </p>
+
+> **Note**: The diagram above illustrates a 4-round Feistel cipher for simplicity. By default, this library uses **16 rounds** for better security. The number of rounds is configurable (see [Trigger Options](#trigger-options)).
 
 ### Algorithm Details
 
@@ -45,6 +47,8 @@ Where:
 The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
 
 **Mathematical Proof:**
+
+> **Note**: This proof uses 4 rounds for demonstration. The same principle applies to any number of rounds (default is 16).
 
 Let's denote the input as $(L_1, R_1)$ and the round function as $F(x)$.
 
@@ -208,8 +212,8 @@ The `up_for_trigger/5` function accepts these options:
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
 - `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
-  - Default 16 provides good security/performance balance
-  - Diagram shows 4 rounds for illustration purposes
+  - **Default 16** provides good security/performance balance
+  - **Note**: Diagrams and proofs in this README use 4 rounds for simplicity
   - More rounds = more secure but slower
   - Odd rounds (1, 3, 5...) and even rounds (2, 4, 6...) are both supported
 - `key`: Encryption key (auto-generated if not specified)
@@ -233,7 +237,7 @@ Benchmark results encrypting 100,000 sequential values:
 | Rounds | Total Time | Per Encryption | Use Case |
 |--------|------------|----------------|----------|
 | 1      | 104.64 ms  | ~1.0μs         | Minimal obfuscation |
-| 4      | 174.34 ms  | ~1.7μs         | Diagram example |
+| 4      | 174.34 ms  | ~1.7μs         | Illustration (diagrams/proofs) |
 | **16** | **464.85 ms** | **~4.6μs**  | **Default (recommended)** |
 
 The overhead per INSERT is negligible (microseconds) even with 16 rounds.
