@@ -253,11 +253,11 @@ defmodule MyApp.Repo.Migrations.CreatePosts do
       timestamps()
     end
 
-    execute FeistelCipher.up_for_encryption("public", "posts", "seq", "id")
+    execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
   end
 
   def down do
-    execute FeistelCipher.down_for_encryption("public", "posts", "seq", "id")
+    execute FeistelCipher.down_for_trigger("public", "posts", "seq", "id")
     drop table(:posts)
   end
 end
@@ -295,7 +295,7 @@ Now when you insert a record, `seq` auto-increments and the trigger automaticall
 
 ## Trigger Options
 
-The `up_for_encryption/5` function accepts these options:
+The `up_for_trigger/5` function accepts these options:
 
 - `prefix`, `table`, `source`, `target`: Table and column names (required)
 - `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
@@ -306,7 +306,7 @@ The `up_for_encryption/5` function accepts these options:
 
 Example with custom options:
 ```elixir
-execute FeistelCipher.up_for_encryption(
+execute FeistelCipher.up_for_trigger(
   "public", "posts", "seq", "id", 
   bits: 40, 
   key: 123456789,

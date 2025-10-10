@@ -20,9 +20,9 @@ defmodule FeistelCipher do
   defmodule MyApp.Repo.Migrations.AddFeistelCipher do
     use Ecto.Migration
 
-    def up, do: FeistelCipher.up()
+    def up, do: FeistelCipher.up_for_functions()
 
-    def down, do: FeistelCipher.down()
+    def down, do: FeistelCipher.down_for_functions()
   end
   ```
 
@@ -46,9 +46,9 @@ defmodule FeistelCipher do
   defmodule MyApp.Repo.Migrations.AddPrefixedFeistelCipherFunctions do
     use Ecto.Migration
 
-    def up, do: FeistelCipher.up(functions_prefix: "private")
+    def up, do: FeistelCipher.up_for_functions(functions_prefix: "private")
 
-    def down, do: FeistelCipher.down(functions_prefix: "private")
+    def down, do: FeistelCipher.down_for_functions(functions_prefix: "private")
   end
   ```
 
@@ -77,7 +77,7 @@ defmodule FeistelCipher do
   end
 
   @doc """
-  Run the `up` changes.
+  Create FeistelCipher functions in the database.
 
   ## Arguments
 
@@ -85,7 +85,7 @@ defmodule FeistelCipher do
     * `:functions_prefix` - (String, optional) The PostgreSQL schema prefix where the FeistelCipher functions will be created. Defaults to "public".
     * `:functions_salt` - (Integer, optional) The constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input. Must be between 0 and 2^31-1. If not provided, uses `FeistelCipher.default_functions_salt()`.
   """
-  def up(opts \\ []) when is_list(opts) do
+  def up_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
     functions_salt = Keyword.get(opts, :functions_salt, default_functions_salt())
     validate_key!(functions_salt, "functions_salt")
@@ -205,7 +205,7 @@ defmodule FeistelCipher do
   end
 
   @doc """
-  Run the `down` changes.
+  Drop FeistelCipher functions from the database.
 
   ## Arguments
 
@@ -217,7 +217,7 @@ defmodule FeistelCipher do
   This function drops all FeistelCipher core functions. **PostgreSQL will automatically prevent
   this operation if any triggers are still using these functions**, returning a dependency error.
   """
-  def down(opts \\ []) when is_list(opts) do
+  def down_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
     execute("DROP FUNCTION #{functions_prefix}.feistel_encrypt(bigint, int, bigint)")
@@ -243,7 +243,7 @@ defmodule FeistelCipher do
   ⚠️ Once a table has been created with a specific `bits` value, you **cannot** change the `bits` setting later.
   The Feistel cipher algorithm depends on the `bits` parameter, and changing it would make existing encrypted IDs
   incompatible with the new cipher. If you need to change the `bits` value, you would need to:
-  1. Drop the existing trigger using `down_for_encryption/4`
+  1. Drop the existing trigger using `down_for_trigger/4`
   2. Recreate all existing data with the new cipher
   3. Set up the new trigger with the desired `bits` value
 
@@ -259,19 +259,19 @@ defmodule FeistelCipher do
   ## Examples
 
       # Automatic key generation (default bits: 52)
-      FeistelCipher.up_for_encryption("public", "posts", "seq", "id")
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
 
       # With custom bits
-      FeistelCipher.up_for_encryption("public", "posts", "seq", "id", bits: 40)
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 40)
 
       # Explicit key for compatibility
-      FeistelCipher.up_for_encryption("public", "posts", "seq", "id", bits: 52, key: 123456789)
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 52, key: 123456789)
 
       # When FeistelCipher functions are in a different prefix (e.g., "crypto" prefix)
-      FeistelCipher.up_for_encryption("public", "posts", "seq", "id", functions_prefix: "crypto")
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", functions_prefix: "crypto")
 
   """
-  def up_for_encryption(prefix, table, source, target, opts \\ []) when is_list(opts) do
+  def up_for_trigger(prefix, table, source, target, opts \\ []) when is_list(opts) do
     # The default is 52 for LiveView and JavaScript interoperability.
     bits = Keyword.get(opts, :bits, 52)
 
@@ -323,9 +323,9 @@ defmodule FeistelCipher do
 
   2. **Different Key (REQUIRES MANUAL ACTION)**: If any of these parameters change, the key will be different:
      - Find the original key from your previous migration
-     - Use `up_for_encryption/5` with the explicit `:key` option:
+     - Use `up_for_trigger/5` with the explicit `:key` option:
        ```elixir
-       FeistelCipher.up_for_encryption("public", "posts", "seq", "id", bits: 52, key: original_key)
+       FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 52, key: original_key)
        ```
 
   3. **Empty Table (SAFE)**: If the table has no data, you can safely use a new key by simply removing
@@ -339,14 +339,14 @@ defmodule FeistelCipher do
 
   ## Example
 
-      FeistelCipher.down_for_encryption("public", "posts", "seq", "id")
+      FeistelCipher.down_for_trigger("public", "posts", "seq", "id")
 
   """
-  def down_for_encryption(prefix, table, source, target) do
+  def down_for_trigger(prefix, table, source, target) do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{source} -> #{target} encryption for table #{prefix}.#{table}. Check key compatibility before proceeding. Remove this RAISE EXCEPTION block to execute. See FeistelCipher.down_for_encryption/4 documentation for details.';
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{source} -> #{target} encryption for table #{prefix}.#{table}. Check key compatibility before proceeding. Remove this RAISE EXCEPTION block to execute. See FeistelCipher.down_for_trigger/4 documentation for details.';
     END
     $$;
 
