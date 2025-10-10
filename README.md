@@ -242,7 +242,7 @@ The overhead per INSERT is negligible (microseconds) even with 16 rounds.
 
 - **CPU**: Apple M3 Pro (12 cores)
 - **Database**: PostgreSQL 17 (Postgres.app)
-- **OS**: macOS
+- **OS**: macOS 15.6
 - **Elixir**: 1.18.3 / OTP 27
 
 ### Running Benchmarks
