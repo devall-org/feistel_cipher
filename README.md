@@ -126,11 +126,11 @@ The Feistel cipher is **self-inverse**: applying the same function twice returns
 
 **Mathematical Proof:**
 
-Let's denote the input as \( (L_0, R_0) \) and the round function as \( F(x) \).
+Let's denote the input as $(L_0, R_0)$ and the round function as $F(x)$.
 
 **First application (Encryption):**
 
-\[
+```math
 \begin{aligned}
 L_1 &= R_0, & R_1 &= L_0 \oplus F(R_0) \\
 L_2 &= R_1, & R_2 &= L_1 \oplus F(R_1) \\
@@ -138,11 +138,11 @@ L_3 &= R_2, & R_3 &= L_2 \oplus F(R_2) \\
 L_4 &= R_3, & R_4 &= L_3 \oplus F(R_3) \\
 \text{Output} &= (R_4, L_4)
 \end{aligned}
-\]
+```
 
-**Second application (Decryption) - Starting with \( (R_4, L_4) \):**
+**Second application (Decryption) - Starting with $(R_4, L_4)$:**
 
-\[
+```math
 \begin{aligned}
 L_1' &= L_4, & R_1' &= R_4 \oplus F(L_4) \\
 &= L_4, & &= R_4 \oplus F(R_3) \\
@@ -169,9 +169,9 @@ L_4' &= R_3' = R_0, & R_4' &= L_3' \oplus F(R_3') \\
 \\
 \text{Output} &= (R_4', L_4') = (L_0, R_0) \quad \checkmark
 \end{aligned}
-\]
+```
 
-**Key Insight:** The XOR operation's property \( a \oplus b \oplus b = a \) ensures that each transformation is reversed when applied twice.
+**Key Insight:** The XOR operation's property $a \oplus b \oplus b = a$ ensures that each transformation is reversed when applied twice.
 
 **Visual Demonstration:**
 
