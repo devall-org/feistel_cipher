@@ -124,33 +124,68 @@ Where:
 
 The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
 
-**Mathematical Definition:**
+**Mathematical Proof:**
 
-Let \( E(x) = \text{feistel\_encrypt}(x, \text{bits}, \text{key}) \)
+Let's denote the input as \( (L_0, R_0) \) and the round function as \( F(x) \).
 
-Then:
+**First application (Encryption):**
+
 \[
-E(E(x)) = x \quad \text{for all } x
+\begin{aligned}
+L_1 &= R_0, & R_1 &= L_0 \oplus F(R_0) \\
+L_2 &= R_1, & R_2 &= L_1 \oplus F(R_1) \\
+L_3 &= R_2, & R_3 &= L_2 \oplus F(R_2) \\
+L_4 &= R_3, & R_4 &= L_3 \oplus F(R_3) \\
+\text{Output} &= (R_4, L_4)
+\end{aligned}
 \]
 
-Or more explicitly:
+**Second application (Decryption) - Starting with \( (R_4, L_4) \):**
+
 \[
-\text{feistel\_encrypt}(\text{feistel\_encrypt}(x, \text{bits}, \text{key}), \text{bits}, \text{key}) = x
+\begin{aligned}
+L_1' &= L_4, & R_1' &= R_4 \oplus F(L_4) \\
+&= L_4, & &= R_4 \oplus F(R_3) \\
+&= L_4, & &= (L_3 \oplus F(R_3)) \oplus F(R_3) \\
+&= L_4, & &= L_3 \quad \text{(XOR cancellation)} \\
+\\
+L_2' &= R_1' = L_3, & R_2' &= L_1' \oplus F(R_1') \\
+&= L_3, & &= L_4 \oplus F(L_3) \\
+&= L_3, & &= R_3 \oplus F(R_2) \\
+&= L_3, & &= (L_2 \oplus F(R_2)) \oplus F(R_2) \\
+&= L_3, & &= L_2 \quad \text{(XOR cancellation)} \\
+\\
+L_3' &= R_2' = L_2, & R_3' &= L_2' \oplus F(R_2') \\
+&= L_2, & &= L_3 \oplus F(L_2) \\
+&= L_2, & &= R_2 \oplus F(R_1) \\
+&= L_2, & &= (L_1 \oplus F(R_1)) \oplus F(R_1) \\
+&= L_2, & &= L_1 = R_0 \\
+\\
+L_4' &= R_3' = R_0, & R_4' &= L_3' \oplus F(R_3') \\
+&= R_0, & &= L_2 \oplus F(R_0) \\
+&= R_0, & &= R_1 \oplus F(R_0) \\
+&= R_0, & &= (L_0 \oplus F(R_0)) \oplus F(R_0) \\
+&= R_0, & &= L_0 \quad \text{(XOR cancellation)} \\
+\\
+\text{Output} &= (R_4', L_4') = (L_0, R_0) \quad \checkmark
+\end{aligned}
 \]
+
+**Key Insight:** The XOR operation's property \( a \oplus b \oplus b = a \) ensures that each transformation is reversed when applied twice.
 
 **Visual Demonstration:**
 
 ```mermaid
 flowchart TB
-    Plain["Plain Value<br/>Example: 123"]
+    Plain["Plain Value<br/>Example: 123<br/>(L₀, R₀)"]
     
-    Plain --> E["feistel_encrypt(123, bits, key)"]
-    E --> Cipher["Encrypted Value<br/>Example: 8234567"]
+    Plain --> E["Apply Feistel Transform<br/>4 rounds + final swap"]
+    E --> Cipher["Encrypted Value<br/>Example: 8234567<br/>(R₄, L₄)"]
     
-    Cipher --> D["feistel_encrypt(8234567, bits, key)<br/><b>Same Function!</b>"]
-    D --> Plain2["Original Value<br/>123"]
+    Cipher --> D["Apply Same Transform Again<br/>4 rounds + final swap"]
+    D --> Plain2["Original Value<br/>123<br/>(L₀, R₀)"]
     
-    Note["✨ Self-Inverse Property:<br/>E(E(x)) = x"]
+    Note["✨ Self-Inverse Property:<br/>Each XOR cancels out on second application"]
     
     style Plain fill:#e1f5ff
     style Cipher fill:#ffe1e1
@@ -159,13 +194,6 @@ flowchart TB
     style D fill:#fff4e1
     style Note fill:#fffacd
 ```
-
-**Why It Works:**
-
-This self-inverse property comes from the Feistel network structure:
-- Each round swaps and transforms the left and right halves
-- The final swap (Round 4) ensures that applying the function twice reverses all transformations
-- The XOR operation (\( a \oplus b \oplus b = a \)) is key to reversibility
 
 In the database trigger implementation, this means:
 ```sql
