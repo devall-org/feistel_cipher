@@ -173,27 +173,7 @@ L_4' &= R_3' = R_0, & R_4' &= L_3' \oplus F(R_3') \\
 
 **Key Insight:** The XOR operation's property $a \oplus b \oplus b = a$ ensures that each transformation is reversed when applied twice.
 
-**Visual Demonstration:**
-
-```mermaid
-flowchart TB
-    Plain["Plain Value<br/>Example: 123<br/>(L₀, R₀)"]
-    
-    Plain --> E["Apply Feistel Transform<br/>4 rounds + final swap"]
-    E --> Cipher["Encrypted Value<br/>Example: 8234567<br/>(R₄, L₄)"]
-    
-    Cipher --> D["Apply Same Transform Again<br/>4 rounds + final swap"]
-    D --> Plain2["Original Value<br/>123<br/>(L₀, R₀)"]
-    
-    Note["✨ Self-Inverse Property:<br/>Each XOR cancels out on second application"]
-    
-    style Plain fill:#e1f5ff
-    style Cipher fill:#ffe1e1
-    style Plain2 fill:#e1f5ff
-    style E fill:#fff4e1
-    style D fill:#fff4e1
-    style Note fill:#fffacd
-```
+**Database Implementation:**
 
 In the database trigger implementation, this means:
 ```sql
