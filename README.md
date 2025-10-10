@@ -129,6 +129,8 @@ Both methods support the following options:
 * `--functions-prefix` or `-p`: PostgreSQL schema prefix (default: `public`)
 * `--functions-salt` or `-s`: Cipher salt constant, max 2^31-1 (default: `1_076_943_109`)
 
+> **Easter Egg**: Notice the migration file timestamp `19730501000000`? That's May 1, 1973 - the day [Horst Feistel published his groundbreaking paper](https://en.wikipedia.org/wiki/Feistel_cipher#History) at IBM, introducing the cipher structure that powers this library. We thought it deserved a permanent timestamp in your database history! 🎂
+
 
 ## Usage Example
 
