@@ -19,70 +19,72 @@ flowchart TB
     
     subgraph Round1["Round 1"]
         direction LR
-        L0_in["L0"] --> XOR1["⊕"]
-        R0_in["R0"] --> F1["F(R0)"]
-        R0_in2["R0"] -.Copy.-> L1["L1"]
-        F1 --> XOR1
-        XOR1 --> R1["R1"]
+        XOR1["⊕"]
+        F1["F(R0)"]
+        L1["L1"]
+        R1["R1"]
     end
     
     subgraph Round2["Round 2"]
         direction LR
-        L1_in["L1"] --> XOR2["⊕"]
-        R1_in["R1"] --> F2["F(R1)"]
-        R1_in2["R1"] -.Copy.-> L2["L2"]
-        F2 --> XOR2
-        XOR2 --> R2["R2"]
+        XOR2["⊕"]
+        F2["F(R1)"]
+        L2["L2"]
+        R2["R2"]
     end
     
     subgraph Round3["Round 3"]
         direction LR
-        L2_in["L2"] --> XOR3["⊕"]
-        R2_in["R2"] --> F3["F(R2)"]
-        R2_in2["R2"] -.Copy.-> L3["L3"]
-        F3 --> XOR3
-        XOR3 --> R3["R3"]
+        XOR3["⊕"]
+        F3["F(R2)"]
+        L3["L3"]
+        R3["R3"]
     end
     
     subgraph Round4["Round 4"]
         direction LR
-        L3_in["L3"] --> XOR4["⊕"]
-        R3_in["R3"] --> F4["F(R3)"]
-        R3_in2["R3"] -.Copy.-> L4["L4"]
-        F4 --> XOR4
-        XOR4 --> R4["R4"]
+        XOR4["⊕"]
+        F4["F(R3)"]
+        L4["L4"]
+        R4["R4"]
     end
     
     subgraph Final["Final Swap"]
-        L4_in["L4"] --> R5["R5"]
-        R4_in["R4"] --> L5["L5"]
-    end
-    
-    subgraph Out["Output"]
-        L5_out["L5<br/>(Left N/2 bits)"]
-        R5_out["R5<br/>(Right N/2 bits)"]
+        L5["L5"]
+        R5["R5"]
     end
     
     Input --> Initial
-    L0 --> L0_in
-    R0 --> R0_in
-    R0 --> R0_in2
-    L1 --> L1_in
-    R1 --> R1_in
-    R1 --> R1_in2
-    L2 --> L2_in
-    R2 --> R2_in
-    R2 --> R2_in2
-    L3 --> L3_in
-    R3 --> R3_in
-    R3 --> R3_in2
-    L4 --> L4_in
-    R4 --> R4_in
-    L5 --> L5_out
-    R5 --> R5_out
     
-    Output["Output: N bits"]
-    Out --> Output
+    L0 --> XOR1
+    R0 --> F1
+    R0 -.Copy.-> L1
+    F1 --> XOR1
+    XOR1 --> R1
+    
+    L1 --> XOR2
+    R1 --> F2
+    R1 -.Copy.-> L2
+    F2 --> XOR2
+    XOR2 --> R2
+    
+    L2 --> XOR3
+    R2 --> F3
+    R2 -.Copy.-> L3
+    F3 --> XOR3
+    XOR3 --> R3
+    
+    L3 --> XOR4
+    R3 --> F4
+    R3 -.Copy.-> L4
+    F4 --> XOR4
+    XOR4 --> R4
+    
+    L4 --> R5
+    R4 --> L5
+    
+    L5 --> Output["Output: N bits"]
+    R5 --> Output
     
     style Input fill:#e1f5ff
     style Output fill:#e1f5ff
@@ -98,8 +100,6 @@ flowchart TB
     style R4 fill:#e1ffe1
     style L5 fill:#ffe1e1
     style R5 fill:#e1ffe1
-    style L5_out fill:#ffe1e1
-    style R5_out fill:#e1ffe1
     style F1 fill:#fff4e1
     style F2 fill:#fff4e1
     style F3 fill:#fff4e1
