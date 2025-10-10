@@ -100,6 +100,24 @@ seq = feistel_encrypt(id, bits, key)
 
 ## Installation
 
+> **Using Ash Framework?** 
+> 
+> If you're using [Ash Framework](https://ash-hq.org/), use [`ash_feistel_cipher`](https://github.com/jechol/ash_feistel_cipher) instead! It provides a declarative DSL to configure Feistel cipher encryption directly in your Ash resources.
+>
+> ```elixir
+> use Ash.Resource,
+>   extensions: [AshFeistelCipher]
+>
+> feistel_cipher do
+>   source :seq
+>   target :id
+>   bits 52
+>   rounds 16
+> end
+> ```
+>
+> For plain Ecto users, continue below.
+
 ### Using igniter (Recommended)
 
 ```bash
