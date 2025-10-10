@@ -6,7 +6,7 @@ defmodule Mix.Tasks.FeistelCipher.Install.Docs do
   end
 
   def example do
-    "mix feistel_cipher.install"
+    "mix igniter.install feistel_cipher"
   end
 
   def long_doc do

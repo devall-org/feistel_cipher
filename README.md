@@ -8,10 +8,22 @@ This library provides Mix tasks and Ecto migrations to set up and manage Feistel
 
 You can install FeistelCipher using `igniter` or by manually adding it to your dependencies.
 
-### Using igniter
+### Using igniter (Recommended)
 
 ```bash
 mix igniter.install feistel_cipher
+```
+
+You can customize the installation with the following options:
+
+* `--repo` or `-r`: Specify an Ecto repo for FeistelCipher to use.
+* `--functions-prefix` or `-p`: Specify the PostgreSQL schema prefix where the FeistelCipher functions will be created, defaults to `public`.
+* `--functions-salt` or `-s`: Specify the constant value used in the Feistel cipher algorithm. Changing this value will result in different cipher outputs for the same input, should be less than 2^31, defaults to `1_076_943_109`.
+
+Example with custom options:
+
+```bash
+mix igniter.install feistel_cipher --repo MyApp.Repo --functions-prefix accounts --functions-salt 123456789
 ```
 
 ### Manual Installation
@@ -21,7 +33,7 @@ mix igniter.install feistel_cipher
     ```elixir
     def deps do
       [
-        {:feistel_cipher, "~> 0.6.1"}
+        {:feistel_cipher, "~> 0.7.0"}
       ]
     end
     ```
