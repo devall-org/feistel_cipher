@@ -67,8 +67,9 @@ Benchee.run(
       ])
     end
   },
+  warmup: 1,
   time: 3,
-  memory_time: 1,
+  memory_time: 0,
   formatters: [
     {Benchee.Formatters.Console, comparison: true, extended_statistics: true}
   ]
