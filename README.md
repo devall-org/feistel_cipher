@@ -1,6 +1,6 @@
 # FeistelCipher
 
-Generate non-sequential, unpredictable IDs while maintaining the performance benefits of sequential primary keys.
+Unpredictable integer IDs - no UUIDs needed
 
 ## Why?
 
@@ -129,7 +129,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.9.2"}]
+  [{:feistel_cipher, "~> 0.9.3"}]
 end
 ```
 
