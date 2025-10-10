@@ -207,6 +207,11 @@ The `up_for_trigger/5` function accepts these options:
 - `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
+- `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
+  - Default 16 provides good security/performance balance
+  - Diagram shows 4 rounds for illustration purposes
+  - More rounds = more secure but slower
+  - Odd rounds (1, 3, 5...) and even rounds (2, 4, 6...) are both supported
 - `key`: Encryption key (auto-generated if not specified)
 - `functions_prefix`: Schema where cipher functions reside (default: `public`)
 
@@ -216,6 +221,7 @@ execute FeistelCipher.up_for_trigger(
   "public", "posts", "seq", "id", 
   bits: 40, 
   key: 123456789,
+  rounds: 8,
   functions_prefix: "crypto"
 )
 ```

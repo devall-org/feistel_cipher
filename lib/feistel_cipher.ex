@@ -56,13 +56,12 @@ defmodule FeistelCipher do
     # Since 31 bits (half of 62 bits) are multiplied by a 31-bit parameter,
     # the calculation result is also within the 62-bit range, making it safe for bigint.
     execute("""
-    CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint) returns bigint AS $$
+    CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint, rounds int) returns bigint AS $$
       DECLARE
-        rounds    constant int := 4;
         round     int := 1;
 
-        l bigint array[6];
-        r bigint array[6];
+        l bigint[];
+        r bigint[];
 
         half_bits int    := bits / 2;
         half_mask bigint := (1::bigint << half_bits) - 1;
@@ -79,6 +78,10 @@ defmodule FeistelCipher do
 
         IF input > mask THEN
           RAISE EXCEPTION 'feistel input is larger than % bits: %', bits, input;
+        END IF;
+
+        IF rounds < 1 OR rounds > 32 THEN
+          RAISE EXCEPTION 'feistel rounds must be between 1 and 32: %', rounds;
         END IF;
 
         l[1] := (input >> half_bits) & half_mask;
@@ -106,6 +109,7 @@ defmodule FeistelCipher do
         key bigint;
         source_column text;
         target_column text;
+        rounds int;
 
         clear bigint;
         encrypted bigint;
@@ -119,6 +123,7 @@ defmodule FeistelCipher do
         key           := TG_ARGV[1]::bigint;
         source_column := TG_ARGV[2];
         target_column := TG_ARGV[3];
+        rounds        := TG_ARGV[4]::int;
 
         -- Prevent manual modification of encrypted target column during UPDATE
         -- The target column should only be set automatically based on the source column
@@ -140,15 +145,15 @@ defmodule FeistelCipher do
         IF clear IS NULL THEN
           encrypted := NULL;
         ELSE
-          encrypted := #{functions_prefix}.feistel_encrypt(clear, bits, key);
-          decrypted := #{functions_prefix}.feistel_encrypt(encrypted, bits, key);
+          encrypted := #{functions_prefix}.feistel_encrypt(clear, bits, key, rounds);
+          decrypted := #{functions_prefix}.feistel_encrypt(encrypted, bits, key, rounds);
 
           -- Sanity check: This condition should never occur in practice
           -- Feistel cipher is mathematically guaranteed to be reversible
           -- If this fails, it indicates a serious bug in the feistel_encrypt function implementation
           IF decrypted != clear THEN
-            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
-              clear, encrypted, decrypted, bits, key;
+            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %, rounds: %',
+              clear, encrypted, decrypted, bits, key, rounds;
           END IF;
         END IF;
 
@@ -172,7 +177,7 @@ defmodule FeistelCipher do
   def down_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
-    execute("DROP FUNCTION #{functions_prefix}.feistel_encrypt(bigint, int, bigint)")
+    execute("DROP FUNCTION #{functions_prefix}.feistel_encrypt(bigint, int, bigint, int)")
     execute("DROP FUNCTION #{functions_prefix}.feistel_column_trigger()")
   end
 
@@ -183,12 +188,14 @@ defmodule FeistelCipher do
 
   * `:bits` - Cipher bits (default: 52, max: 62, must be even). ⚠️ Cannot be changed after creation.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided.
+  * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32).
   * `:functions_prefix` - Schema where cipher functions are located (default: "public").
 
   ## Examples
 
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 40, key: 123456789)
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", rounds: 8)
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id", functions_prefix: "crypto")
 
   """
@@ -198,6 +205,12 @@ defmodule FeistelCipher do
 
     unless rem(bits, 2) == 0 do
       raise ArgumentError, "bits must be an even number, got: #{bits}"
+    end
+
+    rounds = Keyword.get(opts, :rounds, 16)
+
+    unless rounds >= 1 and rounds <= 32 do
+      raise ArgumentError, "rounds must be between 1 and 32, got: #{rounds}"
     end
 
     key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target, bits)
@@ -210,7 +223,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{source}', '#{target}');
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{source}', '#{target}', #{rounds});
     """
   end
 
