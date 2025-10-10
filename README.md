@@ -124,6 +124,22 @@ Where:
 
 The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
 
+**Mathematical Definition:**
+
+Let \( E(x) = \text{feistel\_encrypt}(x, \text{bits}, \text{key}) \)
+
+Then:
+\[
+E(E(x)) = x \quad \text{for all } x
+\]
+
+Or more explicitly:
+\[
+\text{feistel\_encrypt}(\text{feistel\_encrypt}(x, \text{bits}, \text{key}), \text{bits}, \text{key}) = x
+\]
+
+**Visual Demonstration:**
+
 ```mermaid
 flowchart TB
     Plain["Plain Value<br/>Example: 123"]
@@ -134,7 +150,7 @@ flowchart TB
     Cipher --> D["feistel_encrypt(8234567, bits, key)<br/><b>Same Function!</b>"]
     D --> Plain2["Original Value<br/>123"]
     
-    Note["✨ Self-Inverse Property:<br/>feistel_encrypt(feistel_encrypt(x)) = x"]
+    Note["✨ Self-Inverse Property:<br/>E(E(x)) = x"]
     
     style Plain fill:#e1f5ff
     style Cipher fill:#ffe1e1
@@ -144,10 +160,12 @@ flowchart TB
     style Note fill:#fffacd
 ```
 
+**Why It Works:**
+
 This self-inverse property comes from the Feistel network structure:
 - Each round swaps and transforms the left and right halves
 - The final swap (Round 4) ensures that applying the function twice reverses all transformations
-- **feistel_encrypt(feistel_encrypt(x, bits, key), bits, key) = x**
+- The XOR operation (\( a \oplus b \oplus b = a \)) is key to reversibility
 
 In the database trigger implementation, this means:
 ```sql
