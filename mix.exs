@@ -4,7 +4,7 @@ defmodule FeistelCipher.MixProject do
   def project do
     [
       app: :feistel_cipher,
-      version: "0.9.0",
+      version: "0.8.2",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       consolidate_protocols: Mix.env() not in [:dev, :test],
@@ -55,6 +55,7 @@ defmodule FeistelCipher.MixProject do
       {:igniter, "~> 0.6", optional: true},
       {:ecto_sql, "~> 3.12"},
       {:postgrex, "~> 0.19", only: :test},
+      {:benchee, "~> 1.0", only: [:dev, :test]},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false}
     ]
   end
