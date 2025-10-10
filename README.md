@@ -28,27 +28,11 @@ The Feistel cipher is a symmetric structure used in the construction of block ci
 
 > **Note**: The diagram above illustrates a 4-round Feistel cipher for simplicity. By default, this library uses **16 rounds** for better security. The number of rounds is configurable (see [Trigger Options](#trigger-options)).
 
-### Algorithm Details
-
-For each round, the Feistel function `F` is defined as:
-
-```
-F(x, key, salt) = (((x ⊕ salt) × salt) ⊕ key) & half_mask
-```
-
-Where:
-- `⊕` is XOR operation
-- `×` is multiplication
-- `&` is bitwise AND
-- `half_mask` ensures the result fits in N/2 bits
-
 ### Self-Inverse Property
 
 The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
 
 **Mathematical Proof:**
-
-> **Note**: This proof uses 4 rounds for demonstration. The same principle applies to any number of rounds (default is 16).
 
 Let's denote the input as $(L_1, R_1)$ and the round function as $F(x)$.
 
@@ -127,7 +111,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.9.0"}]
+  [{:feistel_cipher, "~> 0.9.1"}]
 end
 ```
 
