@@ -43,41 +43,15 @@ digraph feistel {
         {rank=same; L3; F2; XOR2; R3;}
     }
     
-    // Round 3
-    subgraph cluster_3 {
-        label="Round 3";
-        style=rounded;
-        color="#999999";
-        margin=12;
-        L4 [label="L₄", fillcolor="#ffe1e1"];
-        F3 [label="F(R₃)", fillcolor="#fff4e1"];
-        XOR3 [label="⊕", fillcolor="white", shape=circle, width=0.4, fixedsize=true];
-        R4 [label="R₄", fillcolor="#e1ffe1"];
-        {rank=same; L4; F3; XOR3; R4;}
-    }
-    
-    // Round 4
-    subgraph cluster_4 {
-        label="Round 4";
-        style=rounded;
-        color="#999999";
-        margin=12;
-        L5 [label="L₅", fillcolor="#ffe1e1"];
-        F4 [label="F(R₄)", fillcolor="#fff4e1"];
-        XOR4 [label="⊕", fillcolor="white", shape=circle, width=0.4, fixedsize=true];
-        R5 [label="R₅", fillcolor="#e1ffe1"];
-        {rank=same; L5; F4; XOR4; R5;}
-    }
-    
     // Swap
-    subgraph cluster_5 {
+    subgraph cluster_3 {
         label="Swap";
         style=rounded;
         color="#999999";
         margin=12;
-        L6 [label="L₆", fillcolor="#ffe1e1"];
-        R6 [label="R₆", fillcolor="#e1ffe1"];
-        {rank=same; L6; R6;}
+        L4 [label="L₄", fillcolor="#ffe1e1"];
+        R4 [label="R₄", fillcolor="#e1ffe1"];
+        {rank=same; L4; R4;}
     }
     
     // Output
@@ -101,25 +75,11 @@ digraph feistel {
     F2 -> XOR2;
     XOR2 -> R3;
     
-    // Round 3
-    L3 -> XOR3;
-    R3 -> F3;
-    R3 -> L4 [style=dashed, label="copy", fontsize=9];
-    F3 -> XOR3;
-    XOR3 -> R4;
-    
-    // Round 4
-    L4 -> XOR4;
-    R4 -> F4;
-    R4 -> L5 [style=dashed, label="copy", fontsize=9];
-    F4 -> XOR4;
-    XOR4 -> R5;
-    
     // Swap
-    L5 -> R6 [label="swap", fontsize=9];
-    R5 -> L6 [label="swap", fontsize=9];
+    L3 -> R4 [label="swap", fontsize=9];
+    R3 -> L4 [label="swap", fontsize=9];
     
-    L6 -> output [weight=2];
-    R6 -> output [weight=2];
+    L4 -> output [weight=2];
+    R4 -> output [weight=2];
 }
 

@@ -24,10 +24,10 @@ Unpredictable integer IDs - no UUIDs needed
 The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a configurable Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
 
 <p align="center">
-  <img src="assets/feistel-diagram-v2.png" alt="Feistel Cipher Diagram">
+  <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram">
 </p>
 
-> **Note**: The diagram above illustrates a 4-round Feistel cipher for simplicity. By default, this library uses **16 rounds** for better security. The number of rounds is configurable (see [Trigger Options](#trigger-options)).
+> **Note**: The diagram above illustrates a 2-round Feistel cipher for simplicity. By default, this library uses **16 rounds** for better security. The number of rounds is configurable (see [Trigger Options](#trigger-options)).
 
 ### Self-Inverse Property
 
@@ -43,40 +43,26 @@ $$
 \begin{aligned}
 L_2 &= R_1, & R_2 &= L_1 \oplus F(R_1) \\
 L_3 &= R_2, & R_3 &= L_2 \oplus F(R_2) \\
-L_4 &= R_3, & R_4 &= L_3 \oplus F(R_3) \\
-L_5 &= R_4, & R_5 &= L_4 \oplus F(R_4) \\
-\text{Output} &= (R_5, L_5)
+\text{Output} &= (R_3, L_3)
 \end{aligned}
 $$
 
-**Second application (Decryption) - Starting with $(R_5, L_5)$:**
+**Second application (Decryption) - Starting with $(R_3, L_3)$:**
 
 $$
 \begin{aligned}
-L_2' &= L_5, & R_2' &= R_5 \oplus F(L_5) \\
-&= L_5, & &= R_5 \oplus F(R_4) \\
-&= L_5, & &= (L_4 \oplus F(R_4)) \oplus F(R_4) \\
-&= L_5, & &= L_4 \quad \text{(XOR cancellation)} \\
-\\
-L_3' &= R_2' = L_4, & R_3' &= L_2' \oplus F(R_2') \\
-&= L_4, & &= L_5 \oplus F(L_4) \\
-&= L_4, & &= R_4 \oplus F(R_3) \\
-&= L_4, & &= (L_3 \oplus F(R_3)) \oplus F(R_3) \\
-&= L_4, & &= L_3 \quad \text{(XOR cancellation)} \\
-\\
-L_4' &= R_3' = L_3, & R_4' &= L_3' \oplus F(R_3') \\
-&= L_3, & &= L_4 \oplus F(L_3) \\
+L_2' &= L_3, & R_2' &= R_3 \oplus F(L_3) \\
 &= L_3, & &= R_3 \oplus F(R_2) \\
 &= L_3, & &= (L_2 \oplus F(R_2)) \oplus F(R_2) \\
-&= L_3, & &= L_2 = R_1 \\
+&= L_3, & &= L_2 = R_1 \quad \text{(XOR cancellation)} \\
 \\
-L_5' &= R_4' = R_1, & R_5' &= L_4' \oplus F(R_4') \\
+L_3' &= R_2' = R_1, & R_3' &= L_2' \oplus F(R_2') \\
 &= R_1, & &= L_3 \oplus F(R_1) \\
 &= R_1, & &= R_2 \oplus F(R_1) \\
 &= R_1, & &= (L_1 \oplus F(R_1)) \oplus F(R_1) \\
 &= R_1, & &= L_1 \quad \text{(XOR cancellation)} \\
 \\
-\text{Output} &= (R_5', L_5') = (L_1, R_1) \quad \checkmark
+\text{Output} &= (R_3', L_3') = (L_1, R_1) \quad \checkmark
 \end{aligned}
 $$
 
@@ -220,7 +206,7 @@ The `up_for_trigger/5` function accepts these options:
   - Use 62 for maximum range if no browser/JS interaction needed
 - `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
   - **Default 16** provides good security/performance balance
-  - **Note**: Diagrams and proofs in this README use 4 rounds for simplicity
+  - **Note**: Diagrams and proofs in this README use 2 rounds for simplicity
   - More rounds = more secure but slower
   - Odd rounds (1, 3, 5...) and even rounds (2, 4, 6...) are both supported
 - `key`: Encryption key (auto-generated if not specified)
@@ -244,7 +230,7 @@ Benchmark results encrypting 100,000 sequential values:
 | Rounds | Total Time | Per Encryption | Use Case |
 |--------|------------|----------------|----------|
 | 1      | 104.64 ms  | ~1.0μs         | Minimal obfuscation |
-| 4      | 174.34 ms  | ~1.7μs         | Illustration (diagrams/proofs) |
+| 2      | ~140 ms    | ~1.4μs         | Illustration (diagrams/proofs) |
 | **16** | **464.85 ms** | **~4.6μs**  | **Default (recommended)** |
 
 The overhead per INSERT is negligible (microseconds) even with 16 rounds.
