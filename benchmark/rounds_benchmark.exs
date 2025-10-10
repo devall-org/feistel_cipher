@@ -67,15 +67,20 @@ Benchee.run(
       ])
     end
   },
-  time: 10,
-  memory_time: 2,
+  time: 3,
+  memory_time: 1,
   formatters: [
     {Benchee.Formatters.Console, comparison: true, extended_statistics: true}
   ]
 )
 
 # Cleanup
-TestRepo.query!("DROP FUNCTION IF EXISTS public.feistel_encrypt_batch(bigint, bigint, int, bigint, int)")
-Ecto.Migrator.run(TestRepo, [{0, FeistelCipher.TestMigrations.AddFeistelCipher}], :down, all: true)
+TestRepo.query!(
+  "DROP FUNCTION IF EXISTS public.feistel_encrypt_batch(bigint, bigint, int, bigint, int)"
+)
+
+Ecto.Migrator.run(TestRepo, [{0, FeistelCipher.TestMigrations.AddFeistelCipher}], :down,
+  all: true
+)
 
 IO.puts("\n✓ Cleanup completed")
