@@ -23,7 +23,7 @@ Generate non-sequential, unpredictable IDs while maintaining the performance ben
 The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a 4-round Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
 
 <p align="center">
-  <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram" width="600">
+  <img src="assets/feistel-diagram-v2.png" alt="Feistel Cipher Diagram">
 </p>
 
 ### Algorithm Details
@@ -123,7 +123,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.8.1"}]
+  [{:feistel_cipher, "~> 0.8.2"}]
 end
 ```
 
