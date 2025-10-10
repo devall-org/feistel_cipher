@@ -14,8 +14,8 @@ Generate non-sequential, unpredictable IDs while maintaining the performance ben
 - Random integers: Collision risks, complex generation logic
 
 **This Library's Approach**:
-- Store sequential `seq` (fast, efficient indexing)
-- Expose encrypted `id` (non-sequential, reversible)
+- Store sequential integers internally (fast, efficient indexing)
+- Expose encrypted integers externally (non-sequential, reversible)
 - Automatic encryption via database trigger
 
 ## How It Works
