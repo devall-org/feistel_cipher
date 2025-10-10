@@ -58,8 +58,32 @@ Benchee.run(
         key
       ])
     end,
+    "4 rounds" => fn ->
+      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 4)", [
+        start_val,
+        end_val,
+        bits,
+        key
+      ])
+    end,
+    "8 rounds" => fn ->
+      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 8)", [
+        start_val,
+        end_val,
+        bits,
+        key
+      ])
+    end,
     "16 rounds (default)" => fn ->
       TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 16)", [
+        start_val,
+        end_val,
+        bits,
+        key
+      ])
+    end,
+    "32 rounds" => fn ->
+      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 32)", [
         start_val,
         end_val,
         bits,

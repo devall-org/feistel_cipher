@@ -229,9 +229,12 @@ Benchmark results encrypting 100,000 sequential values:
 
 | Rounds | Total Time | Per Encryption | Use Case |
 |--------|------------|----------------|----------|
-| 1      | 104 ms     | ~1.0μs         | Minimal obfuscation |
-| 2      | 135 ms     | ~1.4μs         | Illustration (diagrams/proofs) |
-| **16** | **457 ms** | **~4.6μs**     | **Default (recommended)** |
+| 1      | 103 ms     | ~1.0μs         | Minimal obfuscation |
+| 2      | 131 ms     | ~1.3μs         | Illustration (diagrams/proofs) |
+| 4      | 178 ms     | ~1.8μs         | Light security |
+| 8      | 278 ms     | ~2.8μs         | Moderate security |
+| **16** | **444 ms** | **~4.4μs**     | **Default (recommended)** |
+| 32     | 867 ms     | ~8.7μs         | Maximum security |
 
 The overhead per INSERT is negligible (microseconds) even with 16 rounds.
 
