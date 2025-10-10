@@ -49,7 +49,7 @@ defmodule FeistelCipher.MixProject do
       links: %{
         "GitHub" => "https://github.com/devall-org/feistel_cipher"
       },
-      files: ~w(lib priv mix.exs README.md LICENSE)
+      files: ~w(lib mix.exs README.md LICENSE)
     ]
   end
 end
