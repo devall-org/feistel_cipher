@@ -411,9 +411,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "uses custom functions_prefix" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          functions_prefix: "crypto"
-        )
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id", functions_prefix: "crypto")
 
       assert sql =~ "crypto.feistel_column_trigger"
     end
