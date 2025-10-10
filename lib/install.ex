@@ -62,11 +62,11 @@ if Code.ensure_loaded?(Igniter) do
         {:ok, repo} ->
           migration = """
           def up do
-            FeistelCipher.Migration.up(functions_prefix: "#{opts[:functions_prefix]}", functions_salt: #{opts[:functions_salt]})
+            FeistelCipher.up(functions_prefix: "#{opts[:functions_prefix]}", functions_salt: #{opts[:functions_salt]})
           end
 
           def down do
-            FeistelCipher.Migration.down(functions_prefix: "#{opts[:functions_prefix]}")
+            FeistelCipher.down(functions_prefix: "#{opts[:functions_prefix]}")
           end
           """
 

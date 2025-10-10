@@ -253,11 +253,11 @@ defmodule MyApp.Repo.Migrations.CreatePosts do
       timestamps()
     end
 
-    execute FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id")
+    execute FeistelCipher.up_for_encryption("public", "posts", "seq", "id")
   end
 
   def down do
-    execute FeistelCipher.Migration.down_for_encryption("public", "posts", "seq", "id")
+    execute FeistelCipher.down_for_encryption("public", "posts", "seq", "id")
     drop table(:posts)
   end
 end
@@ -306,7 +306,7 @@ The `up_for_encryption/5` function accepts these options:
 
 Example with custom options:
 ```elixir
-execute FeistelCipher.Migration.up_for_encryption(
+execute FeistelCipher.up_for_encryption(
   "public", "posts", "seq", "id", 
   bits: 40, 
   key: 123456789,

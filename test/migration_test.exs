@@ -277,7 +277,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Get the SQL for creating trigger
       trigger_sql =
-        FeistelCipher.Migration.up_for_encryption("public", "test_posts", "seq", "id")
+        FeistelCipher.up_for_encryption("public", "test_posts", "seq", "id")
 
       # Execute trigger creation
       TestRepo.query!(trigger_sql)
@@ -369,7 +369,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Create trigger for nullable table
       trigger_sql =
-        FeistelCipher.Migration.up_for_encryption("public", "test_nullable", "seq", "id")
+        FeistelCipher.up_for_encryption("public", "test_nullable", "seq", "id")
 
       TestRepo.query!(trigger_sql)
 
@@ -386,7 +386,7 @@ defmodule FeistelCipher.MigrationTest do
 
   describe "up_for_encryption/5" do
     test "generates correct SQL" do
-      sql = FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id")
+      sql = FeistelCipher.up_for_encryption("public", "users", "seq", "id")
 
       assert sql =~ "CREATE TRIGGER"
       assert sql =~ "users_encrypt_seq_to_id_trigger"
@@ -398,20 +398,20 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "uses custom bits" do
-      sql = FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", bits: 40)
+      sql = FeistelCipher.up_for_encryption("public", "users", "seq", "id", bits: 40)
       assert sql =~ "40"
     end
 
     test "uses custom key" do
       sql =
-        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", key: 123_456)
+        FeistelCipher.up_for_encryption("public", "users", "seq", "id", key: 123_456)
 
       assert sql =~ "123456"
     end
 
     test "uses custom functions_prefix" do
       sql =
-        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id",
+        FeistelCipher.up_for_encryption("public", "users", "seq", "id",
           functions_prefix: "crypto"
         )
 
@@ -420,26 +420,26 @@ defmodule FeistelCipher.MigrationTest do
 
     test "raises for odd bits" do
       assert_raise ArgumentError, ~r/bits must be an even number/, fn ->
-        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", bits: 51)
+        FeistelCipher.up_for_encryption("public", "users", "seq", "id", bits: 51)
       end
     end
 
     test "raises for invalid key" do
       assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
-        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", key: -1)
+        FeistelCipher.up_for_encryption("public", "users", "seq", "id", key: -1)
       end
 
       max_key = Bitwise.bsl(1, 31)
 
       assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
-        FeistelCipher.Migration.up_for_encryption("public", "users", "seq", "id", key: max_key)
+        FeistelCipher.up_for_encryption("public", "users", "seq", "id", key: max_key)
       end
     end
   end
 
   describe "down_for_encryption/4" do
     test "generates SQL with safety guard" do
-      sql = FeistelCipher.Migration.down_for_encryption("public", "users", "seq", "id")
+      sql = FeistelCipher.down_for_encryption("public", "users", "seq", "id")
 
       assert sql =~ "RAISE EXCEPTION"
       assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"

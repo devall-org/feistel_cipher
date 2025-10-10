@@ -7,11 +7,11 @@ defmodule FeistelCipher.TestMigrations do
     use Ecto.Migration
 
     def up do
-      FeistelCipher.Migration.up(functions_prefix: "public", functions_salt: 1_076_943_109)
+      FeistelCipher.up(functions_prefix: "public", functions_salt: 1_076_943_109)
     end
 
     def down do
-      FeistelCipher.Migration.down(functions_prefix: "public")
+      FeistelCipher.down(functions_prefix: "public")
     end
   end
 
@@ -19,11 +19,11 @@ defmodule FeistelCipher.TestMigrations do
     use Ecto.Migration
 
     def up do
-      FeistelCipher.Migration.up(functions_prefix: "crypto", functions_salt: 1_076_943_109)
+      FeistelCipher.up(functions_prefix: "crypto", functions_salt: 1_076_943_109)
     end
 
     def down do
-      FeistelCipher.Migration.down(functions_prefix: "crypto")
+      FeistelCipher.down(functions_prefix: "crypto")
     end
   end
 
@@ -31,11 +31,11 @@ defmodule FeistelCipher.TestMigrations do
     use Ecto.Migration
 
     def up do
-      FeistelCipher.Migration.up(functions_prefix: "public", functions_salt: 999_999_999)
+      FeistelCipher.up(functions_prefix: "public", functions_salt: 999_999_999)
     end
 
     def down do
-      FeistelCipher.Migration.down(functions_prefix: "public")
+      FeistelCipher.down(functions_prefix: "public")
     end
   end
 end
