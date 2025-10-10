@@ -58,10 +58,11 @@ defmodule FeistelCipher do
     execute("""
     CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint) returns bigint AS $$
       DECLARE
-        i int := 1;
+        rounds    constant int := 4;
+        round     int := 1;
 
-        a bigint array[5];
-        b bigint array[5];
+        l bigint array[6];
+        r bigint array[6];
 
         half_bits int    := bits / 2;
         half_mask bigint := (1::bigint << half_bits) - 1;
@@ -80,20 +81,20 @@ defmodule FeistelCipher do
           RAISE EXCEPTION 'feistel input is larger than % bits: %', bits, input;
         END IF;
 
-        a[1] := (input >> half_bits) & half_mask;
-        b[1] := input & half_mask;
+        l[1] := (input >> half_bits) & half_mask;
+        r[1] := input & half_mask;
 
-        WHILE i < 4 LOOP
-          a[i + 1] := b[i];
-          b[i + 1] := a[i] # ((((b[i] # #{functions_salt}) * #{functions_salt}) # key) & half_mask);
+        WHILE round <= rounds LOOP
+          l[round + 1] := r[round];
+          r[round + 1] := l[round] # ((((r[round] # #{functions_salt}) * #{functions_salt}) # key) & half_mask);
 
-          i := i + 1;
+          round := round + 1;
         END LOOP;
 
-        a[5] := b[4];
-        b[5] := a[4];
+        l[rounds + 2] := r[rounds + 1];
+        r[rounds + 2] := l[rounds + 1];
 
-        RETURN ((a[5] << half_bits) | b[5]);
+        RETURN ((l[rounds + 2] << half_bits) | r[rounds + 2]);
       END;
     $$ LANGUAGE plpgsql strict immutable;
     """)
