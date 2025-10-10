@@ -237,8 +237,9 @@ Performance scales linearly with the number of rounds. Benchmark results encrypt
 | **16** | **464.85 ms** | **4.44x** | **Default (recommended)** |
 
 **Key Insights:**
-- Linear scaling: 16 rounds ≈ 4x slower than 4 rounds
-- Real-world impact: ~0.5ms overhead per INSERT with 16 rounds
+- Nearly linear scaling: 4 rounds ≈ 1.7x slower than 1 round, 16 rounds ≈ 4.4x slower than 1 round
+- 16 rounds vs 4 rounds: 2.7x slower (~290ms difference for 100k encryptions)
+- Real-world impact: ~0.0046ms per INSERT with 16 rounds (~0.0017ms with 4 rounds)
 - Memory usage: Identical across all round counts
 
 ### Benchmark Environment
