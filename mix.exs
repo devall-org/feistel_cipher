@@ -55,6 +55,7 @@ defmodule FeistelCipher.MixProject do
       {:igniter, "~> 0.6", optional: true},
       {:ecto_sql, "~> 3.12"},
       {:postgrex, "~> 0.19", only: :test},
+      {:benchee, "~> 1.0", only: [:dev, :test]},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false}
     ]
   end

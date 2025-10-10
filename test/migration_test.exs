@@ -69,7 +69,9 @@ defmodule FeistelCipher.MigrationTest do
       assert is_integer(encrypted_value)
 
       # Test that encryption is reversible
-      decrypted = TestRepo.query!("SELECT public.feistel_encrypt($1, 52, 456, 16)", [encrypted_value])
+      decrypted =
+        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, 456, 16)", [encrypted_value])
+
       assert [[123]] = decrypted.rows
 
       # Run migration down
@@ -315,11 +317,16 @@ defmodule FeistelCipher.MigrationTest do
         test_inputs = [0, 1, div(max_value, 2), max_value]
 
         for input <- test_inputs do
-          encrypted = TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 1, 16)", [input, bits])
+          encrypted =
+            TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 1, 16)", [input, bits])
+
           assert [[encrypted_value]] = encrypted.rows
 
           decrypted =
-            TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 1, 16)", [encrypted_value, bits])
+            TestRepo.query!("SELECT public.feistel_encrypt($1, $2, 1, 16)", [
+              encrypted_value,
+              bits
+            ])
 
           assert [[^input]] = decrypted.rows
         end
