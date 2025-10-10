@@ -140,14 +140,15 @@ defmodule FeistelCipher.MigrationTest do
     test "produces expected encryption results (golden test)" do
       # These are known-good encryption results that must never change
       # to maintain backward compatibility with existing encrypted data
+      # Updated for 4-round Feistel cipher
       golden_cases = [
         # {input, bits, key, expected_output}
-        {123, 52, 456, 3_213_617_205_849_620},
-        {1, 62, 1, 2_094_966_981_571_635_280},
-        {4_611_686_018_427_387_903, 62, 2_147_483_647, 14_092_722_811_706_499},
-        {42, 32, 123_456_789, 1_824_131_800},
-        {255, 8, 999, 51},
-        {1000, 52, 1_073_741_824, 2_007_014_348_997_340}
+        {123, 52, 456, 15_691_845_120_291},
+        {1, 62, 1, 376_830_555_249_287_869},
+        {4_611_686_018_427_387_903, 62, 2_147_483_647, 1_913_834_613_900_583_555},
+        {42, 32, 123_456_789, 3_027_659_962},
+        {255, 8, 999, 163},
+        {1000, 52, 1_073_741_824, 2_527_693_577_410_460}
       ]
 
       for {input, bits, key, expected} <- golden_cases do
