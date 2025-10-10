@@ -279,6 +279,8 @@ The `up_for_encryption/5` function accepts these options:
 
 - `prefix`, `table`, `source`, `target`: Table and column names (required)
 - `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
+  - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
+  - Use 62 for maximum range if no browser/JS interaction needed
 - `key`: Encryption key (auto-generated if not specified)
 - `functions_prefix`: Schema where cipher functions reside (default: `public`)
 
