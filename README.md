@@ -1,8 +1,22 @@
 # FeistelCipher
 
-Database functions for Feistel cipher.
+Generate non-sequential, unpredictable IDs while maintaining the performance benefits of sequential primary keys.
 
-This library provides Mix tasks and Ecto migrations to set up and manage Feistel cipher functions and triggers in your PostgreSQL database. Feistel cipher can be used to generate reversible, non-sequential IDs from sequential numbers.
+## Why?
+
+**Problem**: Sequential IDs (1, 2, 3...) leak business information:
+- Competitors can estimate your growth rate
+- Users can enumerate resources (`/posts/1`, `/posts/2`...)
+- Total record counts are exposed
+
+**Common Solutions & Issues**:
+- UUIDs: Poor database performance (index fragmentation, 16 bytes storage)
+- Random integers: Collision risks, complex generation logic
+
+**This Library's Approach**:
+- Store sequential `seq` (fast, efficient indexing)
+- Expose encrypted `id` (non-sequential, reversible)
+- Transform via database trigger (zero application overhead)
 
 ## How It Works
 
@@ -262,16 +276,22 @@ defmodule MyApp.Post do
     
     timestamps()
   end
+  
+  # Use @derive to control JSON serialization
+  @derive {Jason.Encoder, except: [:seq]}  # Hide seq in API responses
 end
 ```
 
 Now when you insert a record, `seq` auto-increments and the trigger automatically sets `id = feistel_encrypt(seq)`:
 
 ```elixir
-# Insert returns non-sequential ID
 %Post{title: "Hello"} |> Repo.insert()
 # => %Post{id: 8234567, seq: 1, title: "Hello"}
+
+# In API responses, only id is exposed (seq is hidden)
 ```
+
+**Security Note**: Keep `seq` internal. Only expose `id` in APIs to prevent enumeration attacks.
 
 ## Trigger Options
 
