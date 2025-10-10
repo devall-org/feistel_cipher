@@ -16,7 +16,7 @@ Generate non-sequential, unpredictable IDs while maintaining the performance ben
 **This Library's Approach**:
 - Store sequential `seq` (fast, efficient indexing)
 - Expose encrypted `id` (non-sequential, reversible)
-- Transform via database trigger (zero application overhead)
+- Automatic encryption via database trigger
 
 ## How It Works
 
