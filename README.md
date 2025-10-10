@@ -125,27 +125,23 @@ Where:
 The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
 
 ```mermaid
-flowchart LR
-    subgraph Encrypt["Encryption"]
-        Plain["Plain Value<br/>123"] --> E["feistel_encrypt<br/>(bits, key)"]
-        E --> Cipher["Encrypted Value<br/>8234567"]
-    end
+flowchart TB
+    Plain["Plain Value<br/>Example: 123"]
     
-    subgraph Decrypt["Decryption (Same Function!)"]
-        Cipher2["Encrypted Value<br/>8234567"] --> D["feistel_encrypt<br/>(bits, key)"]
-        D --> Plain2["Plain Value<br/>123"]
-    end
+    Plain --> E["feistel_encrypt(123, bits, key)"]
+    E --> Cipher["Encrypted Value<br/>Example: 8234567"]
     
-    Cipher -.Same Value.-> Cipher2
+    Cipher --> D["feistel_encrypt(8234567, bits, key)<br/><b>Same Function!</b>"]
+    D --> Plain2["Original Value<br/>123"]
+    
+    Note["✨ Self-Inverse Property:<br/>feistel_encrypt(feistel_encrypt(x)) = x"]
     
     style Plain fill:#e1f5ff
     style Cipher fill:#ffe1e1
-    style Cipher2 fill:#ffe1e1
     style Plain2 fill:#e1f5ff
     style E fill:#fff4e1
     style D fill:#fff4e1
-    style Encrypt fill:#f0f0f0
-    style Decrypt fill:#f0f0f0
+    style Note fill:#fffacd
 ```
 
 This self-inverse property comes from the Feistel network structure:
