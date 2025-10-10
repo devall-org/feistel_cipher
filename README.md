@@ -228,18 +228,15 @@ execute FeistelCipher.up_for_trigger(
 
 ## Performance
 
-Performance scales linearly with the number of rounds. Benchmark results encrypting 100,000 sequential values:
+Benchmark results encrypting 100,000 sequential values:
 
-| Rounds | Average Time | vs 1 Round | Use Case |
-|--------|--------------|------------|----------|
-| 1      | 104.64 ms    | 1.00x      | Minimal obfuscation |
-| 4      | 174.34 ms    | 1.67x      | Diagram example |
-| **16** | **464.85 ms** | **4.44x** | **Default (recommended)** |
+| Rounds | Total Time | Per Encryption | Use Case |
+|--------|------------|----------------|----------|
+| 1      | 104.64 ms  | ~1.0μs         | Minimal obfuscation |
+| 4      | 174.34 ms  | ~1.7μs         | Diagram example |
+| **16** | **464.85 ms** | **~4.6μs**  | **Default (recommended)** |
 
-**Key Insights:**
-- Nearly linear scaling: 4 rounds ≈ 1.7x slower than 1 round, 16 rounds ≈ 4.4x slower than 1 round
-- 16 rounds vs 4 rounds: 2.7x slower (~290ms difference for 100k encryptions)
-- Real-world impact: ~4.6μs per INSERT with 16 rounds (~1.7μs with 4 rounds)
+The overhead per INSERT is negligible (microseconds) even with 16 rounds.
 
 ### Benchmark Environment
 
