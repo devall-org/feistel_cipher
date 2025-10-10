@@ -222,50 +222,75 @@ Both methods support the following options:
 * `--functions-salt` or `-s`: Cipher salt constant, max 2^31-1 (default: `1_076_943_109`)
 
 
-## Example Ecto Schema
+## Usage Example
+
+### 1. Create Migration
 
 ```elixir
-defmodule MyApp.MyTable do
+defmodule MyApp.Repo.Migrations.CreatePosts do
+  use Ecto.Migration
+
+  def up do
+    create table(:posts, primary_key: false) do
+      add :seq, :bigserial
+      add :id, :bigint, primary_key: true
+      add :title, :string
+      
+      timestamps()
+    end
+
+    execute FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id")
+  end
+
+  def down do
+    execute FeistelCipher.Migration.down_for_encryption("public", "posts", "seq", "id")
+    drop table(:posts)
+  end
+end
+```
+
+### 2. Define Schema
+
+```elixir
+defmodule MyApp.Post do
   use Ecto.Schema
 
   @primary_key {:id, :id, autogenerate: true}
-  @foreign_key_type :id
-
-  schema "my_table" do
-    field :seq, :id, autogenerate: true  # BIGSERIAL - source for cipher
-    # id is auto-populated by trigger: id = feistel_encrypt(seq)
+  schema "posts" do
+    field :seq, :id, autogenerate: true
+    field :title, :string
     
     timestamps()
   end
 end
 ```
 
-In the database migration, define `seq` as `BIGSERIAL` and `id` as `BIGINT` primary key. The trigger automatically encrypts `seq` into `id`.
-
-## Creating Triggers
-
-Create a migration to set up the Feistel cipher trigger:
+Now when you insert a record, `seq` auto-increments and the trigger automatically sets `id = feistel_encrypt(seq)`:
 
 ```elixir
-defmodule MyApp.Repo.Migrations.AddPostsFeistelTrigger do
-  use Ecto.Migration
-
-  def up do
-    execute FeistelCipher.Migration.up_for_encryption("public", "posts", "seq", "id", bits: 52)
-  end
-
-  def down do
-    execute FeistelCipher.Migration.down_for_encryption("public", "posts", "seq", "id")
-  end
-end
+# Insert returns non-sequential ID
+%Post{title: "Hello"} |> Repo.insert()
+# => %Post{id: 8234567, seq: 1, title: "Hello"}
 ```
 
-### Options
+## Trigger Options
 
-- `prefix`, `table`, `source`, `target`: Table and column names
+The `up_for_encryption/5` function accepts these options:
+
+- `prefix`, `table`, `source`, `target`: Table and column names (required)
 - `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
 - `key`: Encryption key (auto-generated if not specified)
 - `functions_prefix`: Schema where cipher functions reside (default: `public`)
+
+Example with custom options:
+```elixir
+execute FeistelCipher.Migration.up_for_encryption(
+  "public", "posts", "seq", "id", 
+  bits: 40, 
+  key: 123456789,
+  functions_prefix: "crypto"
+)
+```
 
 ## License
 
