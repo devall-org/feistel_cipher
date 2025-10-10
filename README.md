@@ -9,31 +9,101 @@ This library provides Mix tasks and Ecto migrations to set up and manage Feistel
 The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a 4-round Feistel network that transforms sequential integers into non-sequential encrypted integers in a reversible manner.
 
 ```mermaid
-graph TD
-    Start[Input N bits] --> Split[Split into L0 R0]
-    Split --> |"L0 (N/2 bits)"| Round1A[Round 1]
-    Split --> |"R0 (N/2 bits)"| Round1B[Round 1]
+flowchart TB
+    Input["Input: N bits"]
     
-    Round1A --> |"L1 = R0"| Round2A[Round 2]
-    Round1B --> |"R1 = L0 ⊕ F R0"| Round2B[Round 2]
+    subgraph Initial["Input Split"]
+        L0["L0<br/>(Left N/2 bits)"]
+        R0["R0<br/>(Right N/2 bits)"]
+    end
     
-    Round2A --> |"L2 = R1"| Round3A[Round 3]
-    Round2B --> |"R2 = L1 ⊕ F R1"| Round3B[Round 3]
+    subgraph Round1["Round 1"]
+        direction LR
+        L0_in["L0"] --> XOR1["⊕"]
+        R0_in["R0"] --> F1["F(R0)"]
+        R0_in2["R0"] -.Copy.-> L1["L1"]
+        F1 --> XOR1
+        XOR1 --> R1["R1"]
+    end
     
-    Round3A --> |"L3 = R2"| Round4A[Round 4]
-    Round3B --> |"R3 = L2 ⊕ F R2"| Round4B[Round 4]
+    subgraph Round2["Round 2"]
+        direction LR
+        L1_in["L1"] --> XOR2["⊕"]
+        R1_in["R1"] --> F2["F(R1)"]
+        R1_in2["R1"] -.Copy.-> L2["L2"]
+        F2 --> XOR2
+        XOR2 --> R2["R2"]
+    end
     
-    Round4A --> |"L4 = R3"| Swap[Final Swap]
-    Round4B --> |"R4 = L3 ⊕ F R3"| Swap
+    subgraph Round3["Round 3"]
+        direction LR
+        L2_in["L2"] --> XOR3["⊕"]
+        R2_in["R2"] --> F3["F(R2)"]
+        R2_in2["R2"] -.Copy.-> L3["L3"]
+        F3 --> XOR3
+        XOR3 --> R3["R3"]
+    end
     
-    Swap --> |"L5 = R4"| Combine[Combine]
-    Swap --> |"R5 = L4"| Combine
+    subgraph Round4["Round 4"]
+        direction LR
+        L3_in["L3"] --> XOR4["⊕"]
+        R3_in["R3"] --> F4["F(R3)"]
+        R3_in2["R3"] -.Copy.-> L4["L4"]
+        F4 --> XOR4
+        XOR4 --> R4["R4"]
+    end
     
-    Combine --> Output[Output N bits]
+    subgraph Final["Final Swap"]
+        L4_in["L4"] --> R5["R5"]
+        R4_in["R4"] --> L5["L5"]
+    end
     
-    style Start fill:#e1f5ff
+    subgraph Out["Output"]
+        L5_out["L5<br/>(Left N/2 bits)"]
+        R5_out["R5<br/>(Right N/2 bits)"]
+    end
+    
+    Input --> Initial
+    L0 --> L0_in
+    R0 --> R0_in
+    R0 --> R0_in2
+    L1 --> L1_in
+    R1 --> R1_in
+    R1 --> R1_in2
+    L2 --> L2_in
+    R2 --> R2_in
+    R2 --> R2_in2
+    L3 --> L3_in
+    R3 --> R3_in
+    R3 --> R3_in2
+    L4 --> L4_in
+    R4 --> R4_in
+    L5 --> L5_out
+    R5 --> R5_out
+    
+    Output["Output: N bits"]
+    Out --> Output
+    
+    style Input fill:#e1f5ff
     style Output fill:#e1f5ff
-    style Swap fill:#fff4e1
+    style L0 fill:#ffe1e1
+    style R0 fill:#e1ffe1
+    style L1 fill:#ffe1e1
+    style R1 fill:#e1ffe1
+    style L2 fill:#ffe1e1
+    style R2 fill:#e1ffe1
+    style L3 fill:#ffe1e1
+    style R3 fill:#e1ffe1
+    style L4 fill:#ffe1e1
+    style R4 fill:#e1ffe1
+    style L5 fill:#ffe1e1
+    style R5 fill:#e1ffe1
+    style L5_out fill:#ffe1e1
+    style R5_out fill:#e1ffe1
+    style F1 fill:#fff4e1
+    style F2 fill:#fff4e1
+    style F3 fill:#fff4e1
+    style F4 fill:#fff4e1
 ```
 
 ### Algorithm Details
@@ -49,6 +119,48 @@ Where:
 - `×` is multiplication
 - `&` is bitwise AND
 - `half_mask` ensures the result fits in N/2 bits
+
+### Self-Inverse Property
+
+The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
+
+```mermaid
+flowchart LR
+    subgraph Encrypt["Encryption"]
+        Plain["Plain Value<br/>123"] --> E["feistel_encrypt<br/>(bits, key)"]
+        E --> Cipher["Encrypted Value<br/>8234567"]
+    end
+    
+    subgraph Decrypt["Decryption (Same Function!)"]
+        Cipher2["Encrypted Value<br/>8234567"] --> D["feistel_encrypt<br/>(bits, key)"]
+        D --> Plain2["Plain Value<br/>123"]
+    end
+    
+    Cipher -.Same Value.-> Cipher2
+    
+    style Plain fill:#e1f5ff
+    style Cipher fill:#ffe1e1
+    style Cipher2 fill:#ffe1e1
+    style Plain2 fill:#e1f5ff
+    style E fill:#fff4e1
+    style D fill:#fff4e1
+    style Encrypt fill:#f0f0f0
+    style Decrypt fill:#f0f0f0
+```
+
+This self-inverse property comes from the Feistel network structure:
+- Each round swaps and transforms the left and right halves
+- The final swap (Round 4) ensures that applying the function twice reverses all transformations
+- **feistel_encrypt(feistel_encrypt(x, bits, key), bits, key) = x**
+
+In the database trigger implementation, this means:
+```sql
+-- Encryption: seq → id
+id = feistel_encrypt(seq, bits, key)
+
+-- Decryption: id → seq (using the same function!)
+seq = feistel_encrypt(id, bits, key)
+```
 
 ### Key Properties
 
