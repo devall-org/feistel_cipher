@@ -207,6 +207,11 @@ The `up_for_trigger/5` function accepts these options:
 - `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
+- `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
+  - Default 16 provides good security/performance balance
+  - Diagram shows 4 rounds for illustration purposes
+  - More rounds = more secure but slower
+  - Odd rounds (1, 3, 5...) and even rounds (2, 4, 6...) are both supported
 - `key`: Encryption key (auto-generated if not specified)
 - `functions_prefix`: Schema where cipher functions reside (default: `public`)
 
@@ -216,9 +221,37 @@ execute FeistelCipher.up_for_trigger(
   "public", "posts", "seq", "id", 
   bits: 40, 
   key: 123456789,
+  rounds: 8,
   functions_prefix: "crypto"
 )
 ```
+
+## Performance
+
+Benchmark results encrypting 100,000 sequential values:
+
+| Rounds | Total Time | Per Encryption | Use Case |
+|--------|------------|----------------|----------|
+| 1      | 104.64 ms  | ~1.0μs         | Minimal obfuscation |
+| 4      | 174.34 ms  | ~1.7μs         | Diagram example |
+| **16** | **464.85 ms** | **~4.6μs**  | **Default (recommended)** |
+
+The overhead per INSERT is negligible (microseconds) even with 16 rounds.
+
+### Benchmark Environment
+
+- **CPU**: Apple M3 Pro (12 cores)
+- **Database**: PostgreSQL 17 (Postgres.app)
+- **OS**: macOS 15.6
+- **Elixir**: 1.18.3 / OTP 27
+
+### Running Benchmarks
+
+```bash
+MIX_ENV=test mix run benchmark/rounds_benchmark.exs
+```
+
+The benchmark encrypts 100,000 sequential values (1 to 100,000) using a SQL batch function to minimize overhead and measure pure encryption performance.
 
 ## License
 
