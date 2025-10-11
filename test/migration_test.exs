@@ -405,7 +405,7 @@ defmodule FeistelCipher.MigrationTest do
       [[_seq, original_id]] = result.rows
 
       # Try to update id manually
-      assert_raise Postgrex.Error, ~r/id cannot be modified on UPDATE/, fn ->
+      assert_raise Postgrex.Error, ~r/Column "id" cannot be modified on UPDATE/, fn ->
         TestRepo.query!("UPDATE test_posts SET id = $1 WHERE id = $2", [999_999, original_id])
       end
     end
