@@ -112,60 +112,71 @@ defmodule FeistelCipher do
     execute("""
     CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
       DECLARE
-        bits int;
-        key bigint;
+        -- Trigger parameters
+        bits          int;
+        key           bigint;
         source_column text;
         target_column text;
-        rounds int;
+        rounds        int;
 
-        clear bigint;
-        encrypted bigint;
-        decrypted bigint;
+        -- Source and encrypted values
+        clear_value   bigint;
+        encrypted     bigint;
 
-        new_target_value bigint;
-        old_target_value bigint;
+        -- Temporary values for validation
+        decrypted     bigint;
+        old_target    bigint;
+        new_target    bigint;
 
       BEGIN
+        -- Extract trigger parameters
         bits          := TG_ARGV[0]::int;
         key           := TG_ARGV[1]::bigint;
         source_column := TG_ARGV[2];
         target_column := TG_ARGV[3];
         rounds        := TG_ARGV[4]::int;
 
-        -- Prevent manual modification of encrypted target column during UPDATE
-        -- The target column should only be set automatically based on the source column
-        -- Direct modification would break the encryption consistency
+        -- Guard: Prevent manual modification of encrypted target column during UPDATE
+        -- The target column should only be set automatically based on the source column.
+        -- Direct modification would break the encryption consistency.
         IF TG_OP = 'UPDATE' THEN
           EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', target_column, target_column)
-          INTO old_target_value, new_target_value
+          INTO old_target, new_target
           USING OLD, NEW;
 
-          IF old_target_value != new_target_value THEN
-            RAISE EXCEPTION '% cannot be modified on UPDATE. OLD.%: %, NEW.%: %', target_column, target_column, old_target_value, target_column, new_target_value;
+          IF old_target != new_target THEN
+            RAISE EXCEPTION 'Column "%" cannot be modified on UPDATE (OLD.%: %, NEW.%: %)',
+              target_column, target_column, old_target, target_column, new_target;
           END IF;
         END IF;
 
+        -- Get the clear value from the source column
         EXECUTE format('SELECT ($1).%I::bigint', source_column)
-        INTO clear
+        INTO clear_value
         USING NEW;
 
-        IF clear IS NULL THEN
+        -- Handle NULL case early
+        IF clear_value IS NULL THEN
           encrypted := NULL;
         ELSE
-          encrypted := #{functions_prefix}.feistel_encrypt(clear, bits, key, rounds);
+          -- Encrypt the clear value
+          encrypted := #{functions_prefix}.feistel_encrypt(clear_value, bits, key, rounds);
+
+          -- Sanity check: Verify encryption is reversible
+          -- This condition should never occur in practice as Feistel cipher is
+          -- mathematically guaranteed to be reversible. If this fails, it indicates
+          -- a serious bug in the feistel_encrypt function implementation.
           decrypted := #{functions_prefix}.feistel_encrypt(encrypted, bits, key, rounds);
 
-          -- Sanity check: This condition should never occur in practice
-          -- Feistel cipher is mathematically guaranteed to be reversible
-          -- If this fails, it indicates a serious bug in the feistel_encrypt function implementation
-          IF decrypted != clear THEN
-            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %, rounds: %',
-              clear, encrypted, decrypted, bits, key, rounds;
+          IF decrypted != clear_value THEN
+            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse (clear: %, encrypted: %, decrypted: %, bits: %, key: %, rounds: %)',
+              clear_value, encrypted, decrypted, bits, key, rounds;
           END IF;
         END IF;
 
-        -- Dynamically set the value of the target column in the NEW record
+        -- Set the encrypted value to the target column in the NEW record
         NEW := jsonb_populate_record(NEW, jsonb_build_object(target_column, to_jsonb(encrypted)));
+
         RETURN NEW;
       END;
     $$ LANGUAGE plpgsql;
