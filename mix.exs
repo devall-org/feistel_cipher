@@ -10,7 +10,7 @@ defmodule FeistelCipher.MixProject do
       consolidate_protocols: Mix.env() not in [:dev, :test],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      description: "An Ecto migration for Feistel cipher",
+      description: "Unpredictable integer IDs without UUIDs - Store sequential, expose encrypted",
       package: package(),
       source_url: "https://github.com/devall-org/feistel_cipher",
       homepage_url: "https://github.com/devall-org/feistel_cipher",
