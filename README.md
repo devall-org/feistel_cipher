@@ -1,6 +1,6 @@
 # FeistelCipher
 
-Unpredictable integer IDs - no UUIDs needed
+Unpredictable integer IDs - UUID alternative using Feistel cipher
 
 ## Why?
 
@@ -91,18 +91,6 @@ seq = feistel_encrypt(id, bits, key)
 > 
 > If you're using [Ash Framework](https://ash-hq.org/), use [`ash_feistel_cipher`](https://github.com/devall-org/ash_feistel_cipher) instead! It provides a declarative DSL to configure Feistel cipher encryption directly in your Ash resources.
 >
-> ```elixir
-> use Ash.Resource,
->   extensions: [AshFeistelCipher]
->
-> feistel_cipher do
->   source :seq
->   target :id
->   bits 52
->   rounds 16
-> end
-> ```
->
 > For plain Ecto users, continue below.
 
 ### Using igniter (Recommended)
@@ -116,7 +104,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.9.4"}]
+  [{:feistel_cipher, "~> 0.10.0"}]
 end
 ```
 
