@@ -332,6 +332,40 @@ defmodule FeistelCipher.MigrationTest do
         end
       end
     end
+
+    test "produces valid permutation for 4 bits (0-15 -> 0-15)" do
+      # For 4 bits, all inputs 0-15 should map to all outputs 0-15 (bijection)
+      bits = 4
+      key = 12345
+      rounds = 16
+
+      # Encrypt all possible inputs (0-15)
+      encrypted_values =
+        for input <- 0..15 do
+          result =
+            TestRepo.query!("SELECT public.feistel_encrypt($1, $2, $3, $4)", [
+              input,
+              bits,
+              key,
+              rounds
+            ])
+
+          [[encrypted_value]] = result.rows
+          encrypted_value
+        end
+
+      # All encrypted values should be in range [0, 15]
+      assert Enum.all?(encrypted_values, fn val -> val >= 0 and val <= 15 end),
+             "All encrypted values should be in range [0, 15], got: #{inspect(encrypted_values)}"
+
+      # All encrypted values should be unique (no collisions)
+      assert length(Enum.uniq(encrypted_values)) == 16,
+             "All 16 encrypted values should be unique, got: #{inspect(encrypted_values)}"
+
+      # Encrypted values should form a complete permutation of [0, 15]
+      assert Enum.sort(encrypted_values) == Enum.to_list(0..15),
+             "Encrypted values should be a permutation of 0-15, got: #{inspect(Enum.sort(encrypted_values))}"
+    end
   end
 
   describe "feistel_column_trigger function with real table" do
