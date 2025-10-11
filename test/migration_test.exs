@@ -410,21 +410,133 @@ defmodule FeistelCipher.MigrationTest do
       end
     end
 
-    test "updates seq and id together" do
+    test "updating title does not affect seq and id" do
       # Insert a post
       TestRepo.query!("INSERT INTO test_posts (title) VALUES ('Original')")
 
-      # Update title (should not affect id)
+      result = TestRepo.query!("SELECT seq, id FROM test_posts")
+      [[original_seq, original_id]] = result.rows
+
+      # Update title (should not affect seq/id)
       TestRepo.query!("UPDATE test_posts SET title = 'Updated'")
 
       result = TestRepo.query!("SELECT seq, id, title FROM test_posts")
-      assert [[seq, id, "Updated"]] = result.rows
+      assert [[^original_seq, ^original_id, "Updated"]] = result.rows
 
       # Verify id is still valid encryption of seq
       decrypted =
-        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, get_default_key()])
+        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [
+          original_id,
+          get_default_key()
+        ])
 
-      assert [[^seq]] = decrypted.rows
+      assert [[^original_seq]] = decrypted.rows
+    end
+
+    test "updating seq automatically updates id" do
+      # Insert a post
+      TestRepo.query!("INSERT INTO test_posts (title) VALUES ('Original')")
+
+      result = TestRepo.query!("SELECT seq, id FROM test_posts")
+      [[original_seq, original_id]] = result.rows
+
+      # Update seq (id should be automatically updated)
+      new_seq = original_seq + 100
+      TestRepo.query!("UPDATE test_posts SET seq = $1", [new_seq])
+
+      result = TestRepo.query!("SELECT seq, id FROM test_posts")
+      assert [[^new_seq, new_id]] = result.rows
+
+      # id should have changed
+      assert new_id != original_id
+
+      # Verify new id is encrypted version of new seq
+      decrypted =
+        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [
+          new_id,
+          get_default_key()
+        ])
+
+      assert [[^new_seq]] = decrypted.rows
+    end
+
+    test "updating seq to NULL sets id to NULL" do
+      # Create table that allows NULL seq
+      TestRepo.query!("DROP TABLE IF EXISTS test_nullable_seq CASCADE")
+
+      TestRepo.query!("""
+      CREATE TABLE test_nullable_seq (
+        seq BIGINT,
+        id BIGINT,
+        title TEXT
+      )
+      """)
+
+      # Create trigger for nullable table
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_nullable_seq", "seq", "id")
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert with a value
+      TestRepo.query!("INSERT INTO test_nullable_seq (seq, title) VALUES (42, 'Original')")
+
+      result = TestRepo.query!("SELECT seq, id FROM test_nullable_seq")
+      [[42, original_id]] = result.rows
+      assert original_id != nil
+
+      # Update seq to NULL (id should also become NULL)
+      TestRepo.query!("UPDATE test_nullable_seq SET seq = NULL")
+
+      result = TestRepo.query!("SELECT seq, id FROM test_nullable_seq")
+      assert [[nil, nil]] = result.rows
+
+      # Clean up
+      TestRepo.query!("DROP TABLE IF EXISTS test_nullable_seq CASCADE")
+    end
+
+    test "updating seq from NULL to value sets id to encrypted value" do
+      # Create table that allows NULL seq
+      TestRepo.query!("DROP TABLE IF EXISTS test_nullable_update CASCADE")
+
+      TestRepo.query!("""
+      CREATE TABLE test_nullable_update (
+        seq BIGINT,
+        id BIGINT,
+        title TEXT
+      )
+      """)
+
+      # Create trigger for nullable table
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_nullable_update", "seq", "id")
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert with NULL seq
+      TestRepo.query!("INSERT INTO test_nullable_update (seq, title) VALUES (NULL, 'Test')")
+
+      result = TestRepo.query!("SELECT seq, id FROM test_nullable_update")
+      assert [[nil, nil]] = result.rows
+
+      # Update seq from NULL to a value
+      TestRepo.query!("UPDATE test_nullable_update SET seq = 42")
+
+      result = TestRepo.query!("SELECT seq, id FROM test_nullable_update")
+      assert [[42, id]] = result.rows
+      assert id != nil
+
+      # Calculate the key for this specific table
+      <<key::31, _::481>> = :crypto.hash(:sha512, "public_test_nullable_update_seq_id_52")
+
+      # Verify id is encrypted version of seq
+      decrypted =
+        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, key])
+
+      assert [[42]] = decrypted.rows
+
+      # Clean up
+      TestRepo.query!("DROP TABLE IF EXISTS test_nullable_update CASCADE")
     end
 
     test "handles explicit NULL id" do
