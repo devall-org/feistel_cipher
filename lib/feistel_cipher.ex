@@ -1,6 +1,6 @@
 defmodule FeistelCipher do
   @moduledoc """
-  Generate non-sequential IDs using Feistel cipher in PostgreSQL.
+  Encrypted integer IDs - UUID alternative using Feistel cipher.
 
   ## Basic Usage
 
