@@ -4,13 +4,13 @@ defmodule FeistelCipher.MixProject do
   def project do
     [
       app: :feistel_cipher,
-      version: "0.9.4",
+      version: "0.10.0",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       consolidate_protocols: Mix.env() not in [:dev, :test],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      description: "Unpredictable integer IDs without UUIDs - Store sequential, expose encrypted",
+      description: "Unpredictable integer IDs - UUID alternative using Feistel cipher",
       package: package(),
       source_url: "https://github.com/devall-org/feistel_cipher",
       homepage_url: "https://github.com/devall-org/feistel_cipher",
