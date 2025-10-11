@@ -28,6 +28,7 @@ defmodule FeistelCipher do
   @doc """
   Returns the default salt constant used in the Feistel cipher algorithm.
   """
+  @spec default_functions_salt() :: pos_integer()
   def default_functions_salt do
     1_076_943_109
   end
@@ -40,6 +41,7 @@ defmodule FeistelCipher do
   * `:functions_prefix` - Schema prefix for functions (default: "public").
   * `:functions_salt` - Salt constant for cipher algorithm (default: `default_functions_salt()`). Must be 0 to 2^31-1.
   """
+  @spec up_for_functions(keyword()) :: :ok
   def up_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
     functions_salt = Keyword.get(opts, :functions_salt, default_functions_salt())
@@ -174,6 +176,7 @@ defmodule FeistelCipher do
 
   * `:functions_prefix` - Schema prefix where functions are located (default: "public").
   """
+  @spec down_for_functions(keyword()) :: :ok
   def down_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
@@ -189,6 +192,8 @@ defmodule FeistelCipher do
   * `:bits` - Cipher bits (default: 52, max: 62, must be even). ⚠️ Cannot be changed after creation.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided.
   * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32).
+      - DES uses 16 rounds. 32 provides double the security with acceptable performance.
+      - Performance: 16 rounds ≈ 4.4μs, 32 rounds ≈ 8.7μs per encryption (see README benchmarks).
   * `:functions_prefix` - Schema where cipher functions are located (default: "public").
 
   ## Examples
@@ -199,6 +204,7 @@ defmodule FeistelCipher do
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id", functions_prefix: "crypto")
 
   """
+  @spec up_for_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) :: String.t()
   def up_for_trigger(prefix, table, source, target, opts \\ []) when is_list(opts) do
     # The default is 52 for LiveView and JavaScript interoperability.
     bits = Keyword.get(opts, :bits, 52)
@@ -251,6 +257,7 @@ defmodule FeistelCipher do
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id", key: original_key)
 
   """
+  @spec down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
   def down_for_trigger(prefix, table, source, target) do
     """
     DO $$
@@ -263,6 +270,9 @@ defmodule FeistelCipher do
     """
   end
 
+  # Generates a deterministic encryption key based on table/column information.
+  # Uses SHA-512 hash to derive a 31-bit key (valid range: 0 to 2^31-1).
+  # Same parameters always generate the same key, ensuring consistency across deployments.
   defp generate_key(prefix, table, source, target, bits) do
     <<key::31, _::481>> = :crypto.hash(:sha512, "#{prefix}_#{table}_#{source}_#{target}_#{bits}")
     key
@@ -273,8 +283,11 @@ defmodule FeistelCipher do
   end
 
   defp validate_key!(key, name) do
-    unless key >= 0 and key < Bitwise.bsl(1, 31) do
-      raise ArgumentError, "#{name} must be between 0 and 2^31-1, got: #{key}"
+    max_key = Bitwise.bsl(1, 31) - 1
+
+    unless key >= 0 and key <= max_key do
+      raise ArgumentError,
+            "#{name} must be between 0 and 2^31-1 (0..#{max_key}), got: #{key}"
     end
   end
 end
