@@ -60,14 +60,15 @@ defmodule FeistelCipher do
     execute("""
     CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint, rounds int) returns bigint AS $$
       DECLARE
-        round     int := 1;
+        i          int;
 
-        l bigint[];
-        r bigint[];
+        left_half  bigint;
+        right_half bigint;
+        temp       bigint;
 
-        half_bits int    := bits / 2;
-        half_mask bigint := (1::bigint << half_bits) - 1;
-        mask      bigint := (1::bigint << bits) - 1;
+        half_bits  int    := bits / 2;
+        half_mask  bigint := (1::bigint << half_bits) - 1;
+        mask       bigint := (1::bigint << bits) - 1;
 
       BEGIN
         IF bits < 2 OR bits > 62 OR bits % 2 = 1 THEN
@@ -86,20 +87,24 @@ defmodule FeistelCipher do
           RAISE EXCEPTION 'feistel rounds must be between 1 and 32: %', rounds;
         END IF;
 
-        l[1] := (input >> half_bits) & half_mask;
-        r[1] := input & half_mask;
+        -- Split input into left and right halves
+        left_half  := (input >> half_bits) & half_mask;
+        right_half := input & half_mask;
 
-        WHILE round <= rounds LOOP
-          l[round + 1] := r[round];
-          r[round + 1] := l[round] # ((((r[round] # #{functions_salt}) * #{functions_salt}) # key) & half_mask);
-
-          round := round + 1;
+        -- Feistel rounds
+        FOR i IN 1..rounds LOOP
+          temp       := right_half;
+          right_half := left_half # ((((right_half # #{functions_salt}) * #{functions_salt}) # key) & half_mask);
+          left_half  := temp;
         END LOOP;
 
-        l[rounds + 2] := r[rounds + 1];
-        r[rounds + 2] := l[rounds + 1];
+        -- Final swap
+        temp       := left_half;
+        left_half  := right_half;
+        right_half := temp;
 
-        RETURN ((l[rounds + 2] << half_bits) | r[rounds + 2]);
+        -- Combine halves
+        RETURN ((left_half << half_bits) | right_half);
       END;
     $$ LANGUAGE plpgsql strict immutable;
     """)
