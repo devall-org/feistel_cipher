@@ -24,7 +24,7 @@ Unpredictable integer IDs - no UUIDs needed
 The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a configurable Feistel network that transforms sequential integers into non-sequential encrypted integers with one-to-one mapping.
 
 <p align="center">
-  <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram">
+  <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram" width="66%">
 </p>
 
 > **Note**: The diagram above illustrates a 2-round Feistel cipher for simplicity. By default, this library uses **16 rounds** for better security. The number of rounds is configurable (see [Trigger Options](#trigger-options)).
