@@ -1,6 +1,6 @@
 # FeistelCipher
 
-Unpredictable integer IDs - UUID alternative using Feistel cipher
+Encrypted integer IDs - UUID alternative using Feistel cipher
 
 ## Why?
 
