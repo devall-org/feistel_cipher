@@ -251,7 +251,7 @@ Then only expose `disp_id` in your APIs while keeping `id` internal.
 
 - **UUIDv4**: Random, 36 characters, same non-sequential issues
 - **UUIDv7**: Sequential but exposes timestamp ordering
-- **FeistelCipher**: Random-like, adjustable size (2-62 bits), no timestamp leakage
+- **FeistelCipher**: Random-like, adjustable size (up to 62 bits), no timestamp leakage
 
 Choose FeistelCipher when you need UUIDv4-like randomness but 36 characters is excessive for your use case.
 
