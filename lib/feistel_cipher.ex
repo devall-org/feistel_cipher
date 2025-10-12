@@ -332,9 +332,10 @@ defmodule FeistelCipher do
         old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
         execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
-          bits: 52,           # Must match original
-          key: old_key,       # Key from OLD column names
-          rounds: 16          # Must match original
+          bits: 52,                  # Must match original
+          key: old_key,              # Key from OLD column names
+          rounds: 16,                # Must match original
+          functions_prefix: "public" # Must match original
         )
       end
 
