@@ -2,6 +2,9 @@ defmodule FeistelCipher.MigrationTest do
   use ExUnit.Case, async: false
   alias FeistelCipher.TestRepo
 
+  # Fixed salt for testing purposes to ensure consistent results
+  @test_salt 1_076_943_109
+
   setup do
     # Tests run sequentially (async: false) and clean up after themselves
     :ok
@@ -9,12 +12,12 @@ defmodule FeistelCipher.MigrationTest do
 
   defp create_functions(opts \\ []) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
-    functions_salt = Keyword.get(opts, :functions_salt, FeistelCipher.default_functions_salt())
+    functions_salt = Keyword.get(opts, :functions_salt, @test_salt)
 
     # Use migration to create functions (simulates real usage)
     migration_module =
       cond do
-        functions_prefix == "public" and functions_salt == FeistelCipher.default_functions_salt() ->
+        functions_prefix == "public" and functions_salt == @test_salt ->
           FeistelCipher.TestMigrations.AddFeistelCipher
 
         functions_prefix == "crypto" ->
@@ -29,11 +32,11 @@ defmodule FeistelCipher.MigrationTest do
 
   defp drop_functions(opts \\ []) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
-    functions_salt = Keyword.get(opts, :functions_salt, FeistelCipher.default_functions_salt())
+    functions_salt = Keyword.get(opts, :functions_salt, @test_salt)
 
     migration_module =
       cond do
-        functions_prefix == "public" and functions_salt == FeistelCipher.default_functions_salt() ->
+        functions_prefix == "public" and functions_salt == @test_salt ->
           FeistelCipher.TestMigrations.AddFeistelCipher
 
         functions_prefix == "crypto" ->
