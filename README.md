@@ -18,7 +18,7 @@ Encrypted integer IDs using Feistel cipher
 **This Library's Approach**:
 - Store sequential integers internally (fast, efficient indexing)
 - Expose encrypted integers externally (non-sequential, unpredictable)
-- **Adjustable bit size per column**: user_id = 40 bits (12 digits), post_id = 52 bits (16 digits)
+- **Adjustable bit size per column**: User ID = 40 bits, Post ID = 52 bits
 - Automatic encryption via database trigger
 
 ## How It Works
@@ -193,7 +193,7 @@ The `up_for_trigger/5` function accepts these options:
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
 - `bits`: Cipher bit size (default: 52, max: 62, must be even)
   - **Choose different sizes per column**: Unlike UUIDs (fixed 36 chars), tailor each column's ID length
-  - Example: user_id = 40 bits (12 digits, 1T values), post_id = 52 bits (16 digits, 4.5Q values)
+  - Example: User ID = 40 bits (~1T values), Post ID = 52 bits (~4.5Q values)
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
 - `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
