@@ -322,15 +322,15 @@ defmodule FeistelCipher do
       def change do
         # 1. Drop the old trigger
         execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
-        
+
         # 2. Rename columns
         rename table(:posts), :seq, to: :sequence
         rename table(:posts), :id, to: :external_id
-        
+
         # 3. Recreate trigger with SAME encryption parameters
         # IMPORTANT: Generate key using OLD column names (seq, id)
         old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
-        
+
         execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
           bits: 52,           # Must match original
           key: old_key,       # Key from OLD column names
