@@ -2,6 +2,8 @@
 
 Encrypted integer IDs - UUID alternative using Feistel cipher
 
+> **Database Support**: PostgreSQL only (uses PostgreSQL triggers and functions)
+
 ## Why?
 
 **Problem**: Sequential IDs (1, 2, 3...) leak business information:
@@ -87,6 +89,8 @@ seq = feistel_encrypt(id, bits, key)
 
 ## Installation
 
+> **Prerequisites**: PostgreSQL database required
+>
 > **Using Ash Framework?** 
 > 
 > If you're using [Ash Framework](https://ash-hq.org/), use [`ash_feistel_cipher`](https://github.com/devall-org/ash_feistel_cipher) instead! It provides a declarative DSL to configure Feistel cipher encryption directly in your Ash resources.
