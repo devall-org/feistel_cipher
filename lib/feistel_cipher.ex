@@ -1,6 +1,6 @@
 defmodule FeistelCipher do
   @moduledoc """
-  Encrypted integer IDs - UUID alternative using Feistel cipher.
+  Encrypted integer IDs using Feistel cipher.
 
   ## Basic Usage
 
