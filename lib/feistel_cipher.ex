@@ -119,69 +119,69 @@ defmodule FeistelCipher do
     CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
       DECLARE
         -- Trigger parameters
-        bits          int;
-        key           bigint;
-        source_column text;
-        target_column text;
-        rounds        int;
+        bits        int;
+        key         bigint;
+        from_column text;
+        to_column   text;
+        rounds      int;
 
-        -- Source and encrypted values
-        clear_value   bigint;
-        encrypted     bigint;
+        -- From and to values
+        from_value bigint;
+        to_value   bigint;
 
         -- Temporary values for validation
         decrypted     bigint;
-        old_target    bigint;
-        new_target    bigint;
+        old_to_value  bigint;
+        new_to_value  bigint;
 
       BEGIN
         -- Extract trigger parameters
-        bits          := TG_ARGV[0]::int;
-        key           := TG_ARGV[1]::bigint;
-        source_column := TG_ARGV[2];
-        target_column := TG_ARGV[3];
-        rounds        := TG_ARGV[4]::int;
+        bits        := TG_ARGV[0]::int;
+        key         := TG_ARGV[1]::bigint;
+        from_column := TG_ARGV[2];
+        to_column   := TG_ARGV[3];
+        rounds      := TG_ARGV[4]::int;
 
-        -- Guard: Prevent manual modification of encrypted target column during UPDATE
-        -- The target column should only be set automatically based on the source column.
+        -- Guard: Prevent manual modification of to_column during UPDATE
+        -- The to_column should only be set automatically based on the from_column.
         -- Direct modification would break the encryption consistency.
         IF TG_OP = 'UPDATE' THEN
-          EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', target_column, target_column)
-          INTO old_target, new_target
+          EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', to_column, to_column)
+          INTO old_to_value, new_to_value
           USING OLD, NEW;
 
-          IF old_target != new_target THEN
+          IF old_to_value != new_to_value THEN
             RAISE EXCEPTION 'Column "%" cannot be modified on UPDATE (OLD.%: %, NEW.%: %)',
-              target_column, target_column, old_target, target_column, new_target;
+              to_column, to_column, old_to_value, to_column, new_to_value;
           END IF;
         END IF;
 
-        -- Get the clear value from the source column
-        EXECUTE format('SELECT ($1).%I::bigint', source_column)
-        INTO clear_value
+        -- Get the from_value from the from_column
+        EXECUTE format('SELECT ($1).%I::bigint', from_column)
+        INTO from_value
         USING NEW;
 
         -- Handle NULL case early
-        IF clear_value IS NULL THEN
-          encrypted := NULL;
+        IF from_value IS NULL THEN
+          to_value := NULL;
         ELSE
-          -- Encrypt the clear value
-          encrypted := #{functions_prefix}.feistel_encrypt(clear_value, bits, key, rounds);
+          -- Encrypt the from_value to get to_value
+          to_value := #{functions_prefix}.feistel_encrypt(from_value, bits, key, rounds);
 
           -- Sanity check: Verify encryption is reversible
           -- This condition should never occur in practice as Feistel cipher is
           -- mathematically guaranteed to be reversible. If this fails, it indicates
           -- a serious bug in the feistel_encrypt function implementation.
-          decrypted := #{functions_prefix}.feistel_encrypt(encrypted, bits, key, rounds);
+          decrypted := #{functions_prefix}.feistel_encrypt(to_value, bits, key, rounds);
 
-          IF decrypted != clear_value THEN
-            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse (clear: %, encrypted: %, decrypted: %, bits: %, key: %, rounds: %)',
-              clear_value, encrypted, decrypted, bits, key, rounds;
+          IF decrypted != from_value THEN
+            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse (from: %, to: %, decrypted: %, bits: %, key: %, rounds: %)',
+              from_value, to_value, decrypted, bits, key, rounds;
           END IF;
         END IF;
 
-        -- Set the encrypted value to the target column in the NEW record
-        NEW := jsonb_populate_record(NEW, jsonb_build_object(target_column, to_jsonb(encrypted)));
+        -- Set the to_value to the to_column in the NEW record
+        NEW := jsonb_populate_record(NEW, jsonb_build_object(to_column, to_jsonb(to_value)));
 
         RETURN NEW;
       END;
@@ -208,7 +208,7 @@ defmodule FeistelCipher do
   end
 
   @doc """
-  Returns SQL to create a trigger that encrypts a `source` column to a `target` column.
+  Returns SQL to create a trigger that encrypts a `from` column to a `to` column.
 
   ## Options
 
@@ -228,7 +228,7 @@ defmodule FeistelCipher do
 
   """
   @spec up_for_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) :: String.t()
-  def up_for_trigger(prefix, table, source, target, opts \\ []) when is_list(opts) do
+  def up_for_trigger(prefix, table, from, to, opts \\ []) when is_list(opts) do
     # The default is 52 for LiveView and JavaScript interoperability.
     bits = Keyword.get(opts, :bits, 52)
 
@@ -242,17 +242,17 @@ defmodule FeistelCipher do
       raise ArgumentError, "rounds must be between 1 and 32, got: #{rounds}"
     end
 
-    key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target)
+    key = Keyword.get(opts, :key) || generate_key(prefix, table, from, to)
     validate_key!(key, "key")
 
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
     """
-    CREATE TRIGGER #{trigger_name(table, source, target)}
+    CREATE TRIGGER #{trigger_name(table, from, to)}
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{source}', '#{target}', #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{from}', '#{to}', #{rounds});
     """
   end
 
@@ -270,15 +270,15 @@ defmodule FeistelCipher do
 
   """
   @spec down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
-  def down_for_trigger(prefix, table, source, target) do
+  def down_for_trigger(prefix, table, from, to) do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{source} -> #{target} encryption for table #{prefix}.#{table}. Use force_down_for_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
     END
     $$;
 
-    DROP TRIGGER #{trigger_name(table, source, target)} ON #{prefix}.#{table};
+    DROP TRIGGER #{trigger_name(table, from, to)} ON #{prefix}.#{table};
     """
   end
 
@@ -341,8 +341,8 @@ defmodule FeistelCipher do
 
   """
   @spec force_down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
-  def force_down_for_trigger(prefix, table, source, target) do
-    "DROP TRIGGER #{trigger_name(table, source, target)} ON #{prefix}.#{table};"
+  def force_down_for_trigger(prefix, table, from, to) do
+    "DROP TRIGGER #{trigger_name(table, from, to)} ON #{prefix}.#{table};"
   end
 
   @doc """
@@ -363,13 +363,13 @@ defmodule FeistelCipher do
 
   """
   @spec generate_key(String.t(), String.t(), String.t(), String.t()) :: non_neg_integer()
-  def generate_key(prefix, table, source, target) do
-    <<key::31, _::481>> = :crypto.hash(:sha512, "#{prefix}_#{table}_#{source}_#{target}")
+  def generate_key(prefix, table, from, to) do
+    <<key::31, _::481>> = :crypto.hash(:sha512, "#{prefix}_#{table}_#{from}_#{to}")
     key
   end
 
-  defp trigger_name(table, source, target) do
-    "#{table}_encrypt_#{source}_to_#{target}_trigger"
+  defp trigger_name(table, from, to) do
+    "#{table}_encrypt_#{from}_to_#{to}_trigger"
   end
 
   defp validate_key!(key, name) do
