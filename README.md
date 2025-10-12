@@ -215,15 +215,20 @@ execute FeistelCipher.up_for_trigger(
 
 ### Column Rename
 
-When renaming columns that have triggers, use `force_down_for_trigger/4` to safely drop and recreate the trigger:
+When renaming columns that have triggers, use `force_down_for_trigger/5` with parameter validation to safely drop and recreate the trigger:
 
 ```elixir
 defmodule MyApp.Repo.Migrations.RenamePostsColumns do
   use Ecto.Migration
 
   def change do
-    # 1. Drop the old trigger
-    execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+    # 1. Drop the old trigger with parameter validation
+    execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id",
+      bits: 52,
+      key: FeistelCipher.generate_key("public", "posts", "seq", "id"),
+      rounds: 16,
+      functions_prefix: "public"
+    )
     
     # 2. Rename columns
     rename table(:posts), :seq, to: :sequence
@@ -243,14 +248,16 @@ defmodule MyApp.Repo.Migrations.RenamePostsColumns do
 end
 ```
 
-**⚠️ Critical**: When recreating triggers, ALL encryption parameters (`bits`, `key`, `rounds`, `functions_prefix`) MUST match the original values. Otherwise:
-- New inserts will cause primary key collisions
-- Updates will fail with exceptions
-- Existing encrypted data becomes inconsistent
+**🔒 Parameter Validation**: `force_down_for_trigger/5` now validates that ALL encryption parameters (`bits`, `key`, `rounds`, `functions_prefix`) match the existing trigger before allowing deletion. This prevents accidental parameter mismatches that would break encryption consistency.
+
+**⚠️ Migration Required**: The new version requires explicit parameters. If you're upgrading from a previous version:
+
+1. **Recommended**: Use `force_down_for_trigger/5` with explicit parameters
+2. **Temporary**: Use `force_down_for_trigger/4` (deprecated, shows warning)
 
 To find original parameters, check your migration file where the trigger was first created. If options were omitted, defaults were used: `bits: 52`, `rounds: 16`, `functions_prefix: "public"`. For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
 
-> **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/4` which bypasses the guard.
+> **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/5` which validates parameters before bypassing the guard.
 
 ## Performance
 

@@ -294,15 +294,18 @@ defmodule FeistelCipher do
   - **Table rename**: Renaming `posts` to `articles`
   - **Schema change**: Moving table to a different schema
 
-  ## ⚠️ Compatibility Warning
+  ## ⚠️ Parameter Validation Required
 
-  If recreating the trigger, you MUST use the exact same encryption parameters:
+  Starting from this version, you MUST provide the exact same encryption parameters 
+  that were used when creating the trigger:
   - **bits**: Same bit size (e.g., 52)
   - **key**: Same encryption key
   - **rounds**: Same number of rounds (e.g., 16)
   - **functions_prefix**: Same schema where cipher functions reside (e.g., "public")
 
-  If ANY of these parameters change, the 1:1 mapping breaks:
+  This validation prevents accidental parameter mismatches that would break encryption consistency.
+
+  If ANY of these parameters don't match, the function will raise an exception:
   - **INSERT**: New records encrypt to different `id` values, causing primary key collisions
   - **UPDATE**: Trigger detects `id` mismatch and raises exception, preventing all updates
   - Existing encrypted `id` values become inconsistent with their `seq` values
@@ -316,33 +319,151 @@ defmodule FeistelCipher do
   If options were omitted, the defaults were used (bits: 52, rounds: 16, functions_prefix: "public").
   For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
 
+  ## Options
+
+  * `:bits` - Cipher bits (must match original). Required.
+  * `:key` - Encryption key (must match original). Required.
+  * `:rounds` - Number of Feistel rounds (must match original). Required.
+  * `:functions_prefix` - Schema where cipher functions are located (must match original). Required.
+
   ## Examples
 
       # Example: Column rename (seq -> sequence, id -> external_id)
       def change do
-        # 1. Drop the old trigger
-        execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+        # 1. Drop the old trigger with matching parameters
+        execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id",
+          bits: 52,
+          key: FeistelCipher.generate_key("public", "posts", "seq", "id"),
+          rounds: 16,
+          functions_prefix: "public"
+        )
 
         # 2. Rename columns
         rename table(:posts), :seq, to: :sequence
         rename table(:posts), :id, to: :external_id
 
         # 3. Recreate trigger with SAME encryption parameters
-        # IMPORTANT: Generate key using OLD column names (seq, id)
-        old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
-
         execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
-          bits: 52,                  # Must match original
-          key: old_key,              # Key from OLD column names
-          rounds: 16,                # Must match original
-          functions_prefix: "public" # Must match original
+          bits: 52,
+          key: FeistelCipher.generate_key("public", "posts", "seq", "id"), # Use OLD names for key
+          rounds: 16,
+          functions_prefix: "public"
         )
       end
 
   """
   @spec force_down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
   def force_down_for_trigger(prefix, table, source, target) do
-    "DROP TRIGGER #{trigger_name(table, source, target)} ON #{prefix}.#{table};"
+    require Logger
+    Logger.warn("""
+    ⚠️  DEPRECATED: force_down_for_trigger/4 is deprecated and unsafe.
+    
+    Please use force_down_for_trigger/5 with explicit parameters:
+    
+    FeistelCipher.force_down_for_trigger("#{prefix}", "#{table}", "#{source}", "#{target}",
+      bits: 52,  # or your original value
+      key: FeistelCipher.generate_key("#{prefix}", "#{table}", "#{source}", "#{target}"),  # or your original value
+      rounds: 16,  # or your original value
+      functions_prefix: "public"  # or your original value
+    )
+    
+    This version assumes default values and may fail if your trigger uses different parameters.
+    """)
+    
+    # Use common defaults - may not match actual trigger parameters
+    force_down_for_trigger(prefix, table, source, target,
+      bits: 52,
+      key: generate_key(prefix, table, source, target),
+      rounds: 16,
+      functions_prefix: "public"
+    )
+  end
+
+  @spec force_down_for_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) :: String.t()
+  def force_down_for_trigger(prefix, table, source, target, opts) do
+    bits = Keyword.fetch!(opts, :bits)
+    key = Keyword.fetch!(opts, :key)
+    rounds = Keyword.fetch!(opts, :rounds)
+    functions_prefix = Keyword.fetch!(opts, :functions_prefix)
+
+    trigger_name = trigger_name(table, source, target)
+
+    """
+    DO $$
+    DECLARE
+      trigger_exists boolean;
+      current_bits int;
+      current_key bigint;
+      current_source text;
+      current_target text;
+      current_rounds int;
+      current_functions_prefix text;
+    BEGIN
+      -- Check if trigger exists
+      SELECT EXISTS (
+        SELECT 1 
+        FROM pg_trigger t
+        JOIN pg_class c ON t.tgrelid = c.oid
+        JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE t.tgname = '#{trigger_name}'
+          AND c.relname = '#{table}'
+          AND n.nspname = '#{prefix}'
+      ) INTO trigger_exists;
+
+      IF NOT trigger_exists THEN
+        RAISE EXCEPTION 'Trigger "#{trigger_name}" does not exist on table "#{prefix}.#{table}"';
+      END IF;
+
+      -- Get current trigger parameters
+      SELECT 
+        (string_to_array(encode(t.tgargs, 'escape'), chr(0)))[1]::int,     -- bits
+        (string_to_array(encode(t.tgargs, 'escape'), chr(0)))[2]::bigint,  -- key
+        (string_to_array(encode(t.tgargs, 'escape'), chr(0)))[3],          -- source_column
+        (string_to_array(encode(t.tgargs, 'escape'), chr(0)))[4],          -- target_column
+        (string_to_array(encode(t.tgargs, 'escape'), chr(0)))[5]::int,     -- rounds
+        pn.nspname                                                          -- functions_prefix
+      INTO current_bits, current_key, current_source, current_target, current_rounds, current_functions_prefix
+      FROM pg_trigger t
+      JOIN pg_class c ON t.tgrelid = c.oid
+      JOIN pg_namespace n ON c.relnamespace = n.oid
+      JOIN pg_proc p ON t.tgfoid = p.oid
+      JOIN pg_namespace pn ON p.pronamespace = pn.oid
+      WHERE t.tgname = '#{trigger_name}'
+        AND c.relname = '#{table}'
+        AND n.nspname = '#{prefix}';
+
+      -- Validate parameters match
+      IF current_bits != #{bits} THEN
+        RAISE EXCEPTION 'Parameter mismatch: bits. Expected: %, Actual: %', #{bits}, current_bits;
+      END IF;
+
+      IF current_key != #{key} THEN
+        RAISE EXCEPTION 'Parameter mismatch: key. Expected: %, Actual: %', #{key}, current_key;
+      END IF;
+
+      IF current_source != '#{source}' THEN
+        RAISE EXCEPTION 'Parameter mismatch: source column. Expected: %, Actual: %', '#{source}', current_source;
+      END IF;
+
+      IF current_target != '#{target}' THEN
+        RAISE EXCEPTION 'Parameter mismatch: target column. Expected: %, Actual: %', '#{target}', current_target;
+      END IF;
+
+      IF current_rounds != #{rounds} THEN
+        RAISE EXCEPTION 'Parameter mismatch: rounds. Expected: %, Actual: %', #{rounds}, current_rounds;
+      END IF;
+
+      IF current_functions_prefix != '#{functions_prefix}' THEN
+        RAISE EXCEPTION 'Parameter mismatch: functions_prefix. Expected: %, Actual: %', '#{functions_prefix}', current_functions_prefix;
+      END IF;
+
+      -- All parameters match, safe to drop trigger
+      RAISE NOTICE 'All parameters match. Dropping trigger "#{trigger_name}" on "#{prefix}.#{table}"';
+    END
+    $$;
+
+    DROP TRIGGER #{trigger_name} ON #{prefix}.#{table};
+    """
   end
 
   @doc """
