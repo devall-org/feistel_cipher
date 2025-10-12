@@ -228,7 +228,7 @@ Using the encrypted `id` as the primary key means non-sequential values, similar
 
 **When is it fine?**
 - Typical web applications with moderate insert rates
-- Encryption overhead (microseconds) is negligible compared to typical INSERT operations (milliseconds)
+- Encryption overhead (microseconds) is negligible compared to typical INSERT/UPDATE operations (milliseconds)
 - Most applications prioritize security/privacy over marginal insert performance
 
 ### Alternative: Keep Sequential Primary Key
@@ -306,7 +306,7 @@ Benchmark results encrypting 100,000 sequential values:
 | **16** | **444 ms** | **~4.4μs**     | **Default (recommended)** |
 | 32     | 867 ms     | ~8.7μs         | Maximum security |
 
-The overhead per INSERT is negligible (microseconds) even with 16 rounds.
+The overhead per INSERT/UPDATE is negligible (microseconds) even with 16 rounds.
 
 ### Benchmark Environment
 
