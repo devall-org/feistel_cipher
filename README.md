@@ -190,7 +190,7 @@ Now when you insert a record, `seq` auto-increments and the trigger automaticall
 
 The `up_for_trigger/5` function accepts these options:
 
-- `prefix`, `table`, `source`, `target`: Table and column names (required)
+- `prefix`, `table`, `from`, `to`: Table and column names (required)
 - `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
   - **Choose different sizes per column**: Unlike UUIDs (fixed 36 chars), tailor each column's ID length
   - Example: user_id = 40 bits (12 digits, 1T values), post_id = 52 bits (16 digits, 4.5Q values)
