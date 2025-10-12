@@ -314,6 +314,7 @@ defmodule FeistelCipher do
   **Finding original parameters**: Check your migration file where the trigger was created.
   Look for the `up_for_trigger/5` call and its options (`:bits`, `:key`, `:rounds`, `:functions_prefix`).
   If options were omitted, the defaults were used (bits: 52, rounds: 16, functions_prefix: "public").
+  For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
 
   ## Examples
 
@@ -321,15 +322,18 @@ defmodule FeistelCipher do
       def change do
         # 1. Drop the old trigger
         execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
-
+        
         # 2. Rename columns
         rename table(:posts), :seq, to: :sequence
         rename table(:posts), :id, to: :external_id
-
-        # 3. Create new trigger with new column names but SAME encryption parameters
+        
+        # 3. Recreate trigger with SAME encryption parameters
+        # IMPORTANT: Generate key using OLD column names (seq, id)
+        old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
+        
         execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
           bits: 52,           # Must match original
-          key: 123456789,     # Must match original
+          key: old_key,       # Key from OLD column names
           rounds: 16          # Must match original
         )
       end
