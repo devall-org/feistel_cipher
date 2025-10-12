@@ -140,8 +140,6 @@ defmodule MyApp.Repo.Migrations.CreatePosts do
       add :seq, :bigserial
       add :id, :bigint, primary_key: true
       add :title, :string
-      
-      timestamps()
     end
 
     execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
@@ -164,8 +162,6 @@ defmodule MyApp.Post do
   schema "posts" do
     field :seq, :id, autogenerate: true
     field :title, :string
-    
-    timestamps()
   end
   
   # Use @derive to control JSON serialization
