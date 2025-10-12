@@ -223,7 +223,7 @@ Using the encrypted `id` as the primary key means non-sequential values, similar
 - **Sequential scan cache locality**: Non-sequential ordering reduces cache efficiency
 
 **When does this matter?**
-- High-volume insert workloads (thousands of inserts per second)
+- High-volume insert workloads
 - Frequent sequential range scans over large datasets
 
 **When is it fine?**
