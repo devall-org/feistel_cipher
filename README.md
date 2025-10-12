@@ -1,6 +1,6 @@
 # FeistelCipher
 
-Encrypted integer IDs - UUID alternative using Feistel cipher
+Encrypted integer IDs using Feistel cipher
 
 > **Database Support**: PostgreSQL only (uses PostgreSQL triggers and functions)
 
@@ -108,7 +108,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.12.0"}]
+  [{:feistel_cipher, "~> 0.12.1"}]
 end
 ```
 
