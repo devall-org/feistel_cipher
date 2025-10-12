@@ -108,7 +108,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.11.0"}]
+  [{:feistel_cipher, "~> 0.12.0"}]
 end
 ```
 
@@ -190,19 +190,21 @@ Now when you insert a record, `seq` auto-increments and the trigger automaticall
 
 The `up_for_trigger/5` function accepts these options:
 
+> ⚠️ **Important**: Once a trigger is created, `bits`, `rounds`, `key`, and `functions_prefix` cannot be changed. Changing them would break encryption consistency for existing data.
+
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
-- `bits`: Cipher bit size (default: 52, max: 62, must be even) - **Cannot be changed after creation**
+- `bits`: Cipher bit size (default: 52, max: 62, must be even)
   - **Choose different sizes per column**: Unlike UUIDs (fixed 36 chars), tailor each column's ID length
   - Example: user_id = 40 bits (12 digits, 1T values), post_id = 52 bits (16 digits, 4.5Q values)
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
-- `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32) - **Cannot be changed after creation**
+- `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
   - **Default 16** provides good security/performance balance
   - **Note**: Diagrams and proofs in this README use 2 rounds for simplicity
   - More rounds = more secure but slower
   - Odd rounds (1, 3, 5...) and even rounds (2, 4, 6...) are both supported
-- `key`: Encryption key (auto-generated if not specified) - **Cannot be changed after creation**
-- `functions_prefix`: Schema where cipher functions reside (default: `public`) - **Cannot be changed after creation**
+- `key`: Encryption key (auto-generated if not specified)
+- `functions_prefix`: Schema where cipher functions reside (default: `public`)
 
 Example with custom options:
 ```elixir
@@ -248,11 +250,8 @@ end
 ```
 
 **⚠️ Critical**: When recreating triggers, ALL encryption parameters (`bits`, `key`, `rounds`, `functions_prefix`) MUST match the original values. Otherwise:
-- New inserts will cause primary key collisions
 - Updates will fail with exceptions
-- Existing encrypted data becomes inconsistent
-
-To find original parameters, check your migration file where the trigger was first created. If options were omitted, defaults were used: `bits: 52`, `rounds: 16`, `functions_prefix: "public"`. For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
+- 1:1 mapping breaks (new inserts may produce duplicate encrypted values)
 
 > **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/4` which bypasses the guard.
 
