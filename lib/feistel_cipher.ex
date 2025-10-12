@@ -27,6 +27,12 @@ defmodule FeistelCipher do
 
   @doc """
   Returns the default salt constant used in the Feistel cipher algorithm.
+
+  This value is embedded in the PostgreSQL functions and cannot be changed after creation.
+  To use a different salt, specify `:functions_salt` when calling `up_for_functions/1`.
+
+  The default value `1_076_943_109` is an arbitrarily chosen constant within the valid
+  range (0 to 2^31-1). Any value in this range can be used as the salt.
   """
   @spec default_functions_salt() :: pos_integer()
   def default_functions_salt do
@@ -38,8 +44,8 @@ defmodule FeistelCipher do
 
   ## Options
 
-  * `:functions_prefix` - Schema prefix for functions (default: "public").
-  * `:functions_salt` - Salt constant for cipher algorithm (default: `default_functions_salt()`). Must be 0 to 2^31-1.
+  * `:functions_prefix` - Schema prefix for functions (default: "public"). ⚠️ Cannot be changed after creation.
+  * `:functions_salt` - Salt constant for cipher algorithm (default: `default_functions_salt()`). Must be 0 to 2^31-1. ⚠️ Cannot be changed after creation.
   """
   @spec up_for_functions(keyword()) :: :ok
   def up_for_functions(opts \\ []) when is_list(opts) do
@@ -186,7 +192,8 @@ defmodule FeistelCipher do
   @doc """
   Drop FeistelCipher functions from the database.
 
-  ⚠️ **Warning**: PostgreSQL will prevent this if any triggers still use these functions.
+  **Note**: PostgreSQL will automatically prevent this operation if any triggers
+  are still using these functions. Drop all triggers first using `down_for_trigger/4`.
 
   ## Options
 
@@ -206,11 +213,11 @@ defmodule FeistelCipher do
   ## Options
 
   * `:bits` - Cipher bits (default: 52, max: 62, must be even). ⚠️ Cannot be changed after creation.
-  * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided.
-  * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32).
+  * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. ⚠️ Cannot be changed after creation.
+  * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32). ⚠️ Cannot be changed after creation.
       - DES uses 16 rounds. 32 provides double the security with acceptable performance.
       - Performance: 16 rounds ≈ 4.4μs, 32 rounds ≈ 8.7μs per encryption (see README benchmarks).
-  * `:functions_prefix` - Schema where cipher functions are located (default: "public").
+  * `:functions_prefix` - Schema where cipher functions are located (default: "public"). ⚠️ Cannot be changed after creation.
 
   ## Examples
 
@@ -235,7 +242,7 @@ defmodule FeistelCipher do
       raise ArgumentError, "rounds must be between 1 and 32, got: #{rounds}"
     end
 
-    key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target, bits)
+    key = Keyword.get(opts, :key) || generate_key(prefix, table, source, target)
     validate_key!(key, "key")
 
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
@@ -255,22 +262,11 @@ defmodule FeistelCipher do
   The generated SQL includes a safety guard that prevents execution by default.
   You must manually remove the `RAISE EXCEPTION` block after understanding the risks.
 
-  ## ⚠️ Key Compatibility Warning
-
-  If recreating the trigger:
-  - **Same key**: Use identical prefix/table/source/target/bits (auto-generates same key), or provide explicit `:key`
-  - **Different key**: Existing encrypted data becomes invalid
-  - **Empty table**: Safe to use new key
-
-  To find the original key, check your migration file where the trigger was created.
-  The key is in the generated SQL: `EXECUTE PROCEDURE ...feistel_column_trigger(bits, key, ...)`
+  For legitimate use cases (like column rename), use `force_down_for_trigger/4` instead.
 
   ## Example
 
       FeistelCipher.down_for_trigger("public", "posts", "seq", "id")
-
-      # If recreating with same key (find original_key from migration file)
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", key: original_key)
 
   """
   @spec down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
@@ -278,7 +274,7 @@ defmodule FeistelCipher do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{source} -> #{target} encryption for table #{prefix}.#{table}. Check key compatibility before proceeding. Remove this RAISE EXCEPTION block to execute. See FeistelCipher.down_for_trigger/4 documentation for details.';
+      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{source} -> #{target} encryption for table #{prefix}.#{table}. Use force_down_for_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
     END
     $$;
 
@@ -286,11 +282,84 @@ defmodule FeistelCipher do
     """
   end
 
-  # Generates a deterministic encryption key based on table/column information.
-  # Uses SHA-512 hash to derive a 31-bit key (valid range: 0 to 2^31-1).
-  # Same parameters always generate the same key, ensuring consistency across deployments.
-  defp generate_key(prefix, table, source, target, bits) do
-    <<key::31, _::481>> = :crypto.hash(:sha512, "#{prefix}_#{table}_#{source}_#{target}_#{bits}")
+  @doc """
+  Returns SQL to drop a trigger, bypassing the safety guard.
+
+  Use this when you need to drop and recreate a trigger (e.g., column rename).
+
+  ## When You Need to Drop and Recreate a Trigger
+
+  Common scenarios requiring trigger recreation:
+  - **Column rename**: Renaming `seq` to `sequence` or `id` to `external_id`
+  - **Table rename**: Renaming `posts` to `articles`
+  - **Schema change**: Moving table to a different schema
+
+  ## ⚠️ Compatibility Warning
+
+  If recreating the trigger, you MUST use the exact same encryption parameters:
+  - **bits**: Same bit size (e.g., 52)
+  - **key**: Same encryption key
+  - **rounds**: Same number of rounds (e.g., 16)
+  - **functions_prefix**: Same schema where cipher functions reside (e.g., "public")
+
+  If ANY of these parameters change, the 1:1 mapping breaks:
+  - **INSERT**: New records encrypt to different `id` values, causing primary key collisions
+  - **UPDATE**: Trigger detects `id` mismatch and raises exception, preventing all updates
+  - Existing encrypted `id` values become inconsistent with their `seq` values
+
+  **Safe scenarios**:
+  - All four parameters match the original values (safe to rename columns/tables)
+  - Empty table with no existing encrypted data (safe to use different parameters)
+
+  **Finding original parameters**: Check your migration file where the trigger was created.
+  Look for the `up_for_trigger/5` call and its options (`:bits`, `:key`, `:rounds`, `:functions_prefix`).
+  If options were omitted, the defaults were used (bits: 52, rounds: 16, functions_prefix: "public").
+
+  ## Examples
+
+      # Example: Column rename (seq -> sequence, id -> external_id)
+      def change do
+        # 1. Drop the old trigger
+        execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+
+        # 2. Rename columns
+        rename table(:posts), :seq, to: :sequence
+        rename table(:posts), :id, to: :external_id
+
+        # 3. Create new trigger with new column names but SAME encryption parameters
+        execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
+          bits: 52,           # Must match original
+          key: 123456789,     # Must match original
+          rounds: 16          # Must match original
+        )
+      end
+
+  """
+  @spec force_down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  def force_down_for_trigger(prefix, table, source, target) do
+    "DROP TRIGGER #{trigger_name(table, source, target)} ON #{prefix}.#{table};"
+  end
+
+  @doc """
+  Generates a deterministic encryption key based on table/column information.
+
+  Uses SHA-512 hash to derive a 31-bit key (valid range: 0 to 2^31-1).
+  Same parameters always generate the same key, ensuring consistency across deployments.
+
+  This is useful when recreating triggers (e.g., column rename) to maintain the same encryption key.
+
+  ## Examples
+
+      # Get the key used by the original trigger
+      key = FeistelCipher.generate_key("public", "posts", "seq", "id")
+
+      # Use it when recreating with new column names
+      FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id", key: key)
+
+  """
+  @spec generate_key(String.t(), String.t(), String.t(), String.t()) :: non_neg_integer()
+  def generate_key(prefix, table, source, target) do
+    <<key::31, _::481>> = :crypto.hash(:sha512, "#{prefix}_#{table}_#{source}_#{target}")
     key
   end
 

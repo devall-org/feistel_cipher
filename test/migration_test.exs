@@ -409,8 +409,10 @@ defmodule FeistelCipher.MigrationTest do
       assert is_integer(id)
 
       # Verify id is encrypted version of seq
+      key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
+
       decrypted =
-        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, get_default_key()])
+        TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, key])
 
       assert [[^seq]] = decrypted.rows
     end
@@ -424,9 +426,11 @@ defmodule FeistelCipher.MigrationTest do
       assert length(result.rows) == 5
 
       # Verify all are encrypted correctly
+      key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
+
       for [seq, id] <- result.rows do
         decrypted =
-          TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, get_default_key()])
+          TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, key])
 
         assert [[^seq]] = decrypted.rows
       end
@@ -458,10 +462,12 @@ defmodule FeistelCipher.MigrationTest do
       assert [[^original_seq, ^original_id, "Updated"]] = result.rows
 
       # Verify id is still valid encryption of seq
+      key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
+
       decrypted =
         TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [
           original_id,
-          get_default_key()
+          key
         ])
 
       assert [[^original_seq]] = decrypted.rows
@@ -485,10 +491,12 @@ defmodule FeistelCipher.MigrationTest do
       assert new_id != original_id
 
       # Verify new id is encrypted version of new seq
+      key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
+
       decrypted =
         TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [
           new_id,
-          get_default_key()
+          key
         ])
 
       assert [[^new_seq]] = decrypted.rows
@@ -561,7 +569,7 @@ defmodule FeistelCipher.MigrationTest do
       assert id != nil
 
       # Calculate the key for this specific table
-      <<key::31, _::481>> = :crypto.hash(:sha512, "public_test_nullable_update_seq_id_52")
+      key = FeistelCipher.generate_key("public", "test_nullable_update", "seq", "id")
 
       # Verify id is encrypted version of seq
       decrypted =
@@ -661,12 +669,5 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"
       assert sql =~ "public.users"
     end
-  end
-
-  # Helper function to get the default key for testing
-  defp get_default_key do
-    # This mimics the key generation in up_for_trigger
-    <<key::31, _::481>> = :crypto.hash(:sha512, "public_test_posts_seq_id_52")
-    key
   end
 end

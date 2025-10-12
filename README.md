@@ -104,7 +104,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.10.0"}]
+  [{:feistel_cipher, "~> 0.11.0"}]
 end
 ```
 
@@ -192,13 +192,13 @@ The `up_for_trigger/5` function accepts these options:
   - Example: user_id = 40 bits (12 digits, 1T values), post_id = 52 bits (16 digits, 4.5Q values)
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
-- `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
+- `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32) - **Cannot be changed after creation**
   - **Default 16** provides good security/performance balance
   - **Note**: Diagrams and proofs in this README use 2 rounds for simplicity
   - More rounds = more secure but slower
   - Odd rounds (1, 3, 5...) and even rounds (2, 4, 6...) are both supported
-- `key`: Encryption key (auto-generated if not specified)
-- `functions_prefix`: Schema where cipher functions reside (default: `public`)
+- `key`: Encryption key (auto-generated if not specified) - **Cannot be changed after creation**
+- `functions_prefix`: Schema where cipher functions reside (default: `public`) - **Cannot be changed after creation**
 
 Example with custom options:
 ```elixir
@@ -210,6 +210,46 @@ execute FeistelCipher.up_for_trigger(
   functions_prefix: "crypto"
 )
 ```
+
+## Advanced Usage
+
+### Column Rename
+
+When renaming columns that have triggers, use `force_down_for_trigger/4` to safely drop and recreate the trigger:
+
+```elixir
+defmodule MyApp.Repo.Migrations.RenamePostsColumns do
+  use Ecto.Migration
+
+  def change do
+    # 1. Drop the old trigger
+    execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+    
+    # 2. Rename columns
+    rename table(:posts), :seq, to: :sequence
+    rename table(:posts), :id, to: :external_id
+    
+    # 3. Recreate trigger with SAME encryption parameters
+    # IMPORTANT: Generate key using OLD column names (seq, id)
+    old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
+    
+    execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
+      bits: 52,           # Must match original
+      key: old_key,       # Key from OLD column names
+      rounds: 16          # Must match original
+    )
+  end
+end
+```
+
+**⚠️ Critical**: When recreating triggers, ALL encryption parameters (`bits`, `key`, `rounds`, `functions_prefix`) MUST match the original values. Otherwise:
+- New inserts will cause primary key collisions
+- Updates will fail with exceptions
+- Existing encrypted data becomes inconsistent
+
+To find original parameters, check your migration file where the trigger was first created. If options were omitted, defaults were used: `bits: 52`, `rounds: 16`, `functions_prefix: "public"`. For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
+
+> **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/4` which bypasses the guard.
 
 ## Performance
 
