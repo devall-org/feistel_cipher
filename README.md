@@ -258,6 +258,9 @@ defmodule MyApp.Post do
     field :disp_id, :id, read_after_writes: true
     field :title, :string
   end
+  
+  # Hide internal id in API responses
+  @derive {Jason.Encoder, except: [:id]}
 end
 ```
 
