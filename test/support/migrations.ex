@@ -43,9 +43,8 @@ defmodule FeistelCipher.TestMigrations do
     use Ecto.Migration
 
     def up do
-      create table(:posts, primary_key: false) do
+      create table(:posts) do
         add(:seq, :bigserial)
-        add(:id, :bigint, primary_key: true)
         add(:title, :string)
       end
 
