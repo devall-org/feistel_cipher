@@ -160,14 +160,14 @@ end
 defmodule MyApp.Post do
   use Ecto.Schema
 
+  # Hide seq in API responses
+  @derive {Jason.Encoder, except: [:seq]}
+
   @primary_key {:id, :id, autogenerate: false, read_after_writes: true}
   schema "posts" do
     field :seq, :id, read_after_writes: true
     field :title, :string
   end
-  
-  # Hide seq in API responses
-  @derive {Jason.Encoder, except: [:seq]}
 end
 ```
 
@@ -253,14 +253,14 @@ execute FeistelCipher.up_for_trigger("public", "posts", "id", "disp_id")
 defmodule MyApp.Post do
   use Ecto.Schema
 
+  # Hide internal id in API responses
+  @derive {Jason.Encoder, except: [:id]}
+
   @primary_key {:id, :id, autogenerate: false, read_after_writes: true}
   schema "posts" do
     field :disp_id, :id, read_after_writes: true
     field :title, :string
   end
-  
-  # Hide internal id in API responses
-  @derive {Jason.Encoder, except: [:id]}
 end
 ```
 
