@@ -92,13 +92,13 @@ defmodule FeistelCipher.EctoIntegrationTest do
       encrypted_id = post.id
 
       # Verify determinism using the cipher function directly
-      result =
+      %{rows: [[db_encrypted_id]]} =
         TestRepo.query!(
           "SELECT public.feistel_encrypt($1::bigint, 52, $2::bigint, 16) as encrypted_id",
           [seq, FeistelCipher.generate_key("public", "posts", "seq", "id")]
         )
 
-      assert result.rows |> List.first() |> List.first() == encrypted_id
+      assert db_encrypted_id == encrypted_id
     end
 
     test "matches README example behavior" do
