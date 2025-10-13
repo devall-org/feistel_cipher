@@ -3,34 +3,25 @@ defmodule FeistelCipher.EctoIntegrationTest do
   alias FeistelCipher.{TestRepo, Post}
 
   setup_all do
-    # Create cipher functions
+    # Create cipher functions and posts table with trigger
     Ecto.Migrator.run(
       TestRepo,
-      [{0, FeistelCipher.TestMigrations.AddFeistelCipher}],
+      [
+        {0, FeistelCipher.TestMigrations.AddFeistelCipher},
+        {1, FeistelCipher.TestMigrations.CreatePosts}
+      ],
       :up,
       all: true,
       log: false
     )
 
-    # Create posts table with trigger
-    TestRepo.query!("""
-    CREATE TABLE IF NOT EXISTS posts (
-      seq bigserial,
-      id bigint PRIMARY KEY,
-      title text
-    )
-    """)
-
-    TestRepo.query!(
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
-    )
-
     on_exit(fn ->
-      TestRepo.query!("DROP TABLE IF EXISTS posts CASCADE")
-
       Ecto.Migrator.run(
         TestRepo,
-        [{0, FeistelCipher.TestMigrations.AddFeistelCipher}],
+        [
+          {1, FeistelCipher.TestMigrations.CreatePosts},
+          {0, FeistelCipher.TestMigrations.AddFeistelCipher}
+        ],
         :down,
         all: true,
         log: false
@@ -122,4 +113,3 @@ defmodule FeistelCipher.EctoIntegrationTest do
     end
   end
 end
-

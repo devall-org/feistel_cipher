@@ -9,8 +9,7 @@ defmodule FeistelCipher.Post do
 
   @primary_key {:id, :id, autogenerate: false, read_after_writes: true}
   schema "posts" do
-    field :seq, :id, read_after_writes: true
-    field :title, :string
+    field(:seq, :id, read_after_writes: true)
+    field(:title, :string)
   end
 end
-

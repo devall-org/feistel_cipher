@@ -38,4 +38,23 @@ defmodule FeistelCipher.TestMigrations do
       FeistelCipher.down_for_functions(functions_prefix: "public")
     end
   end
+
+  defmodule CreatePosts do
+    use Ecto.Migration
+
+    def up do
+      create table(:posts, primary_key: false) do
+        add(:seq, :bigserial)
+        add(:id, :bigint, primary_key: true)
+        add(:title, :string)
+      end
+
+      execute(FeistelCipher.up_for_trigger("public", "posts", "seq", "id"))
+    end
+
+    def down do
+      execute(FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id"))
+      drop(table(:posts))
+    end
+  end
 end
