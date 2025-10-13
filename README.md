@@ -165,6 +165,9 @@ defmodule MyApp.Post do
     field :seq, :id, read_after_writes: true
     field :title, :string
   end
+  
+  # Hide seq in API responses
+  @derive {Jason.Encoder, except: [:seq]}
 end
 ```
 
@@ -177,6 +180,8 @@ Now when you insert a record, `seq` auto-increments and the trigger automaticall
 ```elixir
 %Post{title: "Hello"} |> Repo.insert!()
 # => %Post{id: 8234567, seq: 1, title: "Hello"}
+
+# In API responses, only id is exposed (seq is hidden)
 ```
 
 **Security Note**: Keep `seq` internal. Only expose `id` in APIs to prevent enumeration attacks.
