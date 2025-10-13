@@ -160,24 +160,23 @@ end
 defmodule MyApp.Post do
   use Ecto.Schema
 
-  @primary_key {:id, :id, autogenerate: true}
+  @primary_key {:id, :id, autogenerate: false, read_after_writes: true}
   schema "posts" do
-    field :seq, :id, autogenerate: true
+    field :seq, :id, read_after_writes: true
     field :title, :string
   end
-  
-  # Use @derive to control JSON serialization
-  @derive {Jason.Encoder, except: [:seq]}  # Hide seq in API responses
 end
 ```
+
+Key points:
+- `autogenerate: false` - Both `seq` and `id` are set by the database (bigserial + trigger)
+- `read_after_writes: true` - Returns `seq` and `id` values after INSERT
 
 Now when you insert a record, `seq` auto-increments and the trigger automatically sets `id = feistel_encrypt(seq)`:
 
 ```elixir
-%Post{title: "Hello"} |> Repo.insert()
+%Post{title: "Hello"} |> Repo.insert!()
 # => %Post{id: 8234567, seq: 1, title: "Hello"}
-
-# In API responses, only id is exposed (seq is hidden)
 ```
 
 **Security Note**: Keep `seq` internal. Only expose `id` in APIs to prevent enumeration attacks.
@@ -236,6 +235,7 @@ Using the encrypted `id` as the primary key means non-sequential values, similar
 If you need sequential primary key performance, use the encrypted value as a separate display column:
 
 ```elixir
+# Migration
 create table(:posts, primary_key: false) do
   add :id, :bigserial, primary_key: true    # Sequential, for internal use
   add :disp_id, :bigint                      # Encrypted, for public APIs
@@ -243,6 +243,17 @@ create table(:posts, primary_key: false) do
 end
 
 execute FeistelCipher.up_for_trigger("public", "posts", "id", "disp_id")
+
+# Schema
+defmodule MyApp.Post do
+  use Ecto.Schema
+
+  @primary_key {:id, :id, autogenerate: false, read_after_writes: true}
+  schema "posts" do
+    field :disp_id, :id, read_after_writes: true
+    field :title, :string
+  end
+end
 ```
 
 Then only expose `disp_id` in your APIs while keeping `id` internal.
