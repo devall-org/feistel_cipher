@@ -12,14 +12,16 @@ Encrypted integer IDs using Feistel cipher
 - Total record counts are exposed
 
 **Common Solutions & Issues**:
-- UUIDs: Fixed 36 chars for everything - overkill for most columns
-- Random integers: Collision risks, complex generation logic
+- **UUIDs/Random integers**: Generate different IDs on every seed run, making dev/staging environments inconsistent
+- **UUIDs**: Fixed 16 bytes (36 characters) - too long for URLs (`/posts/550e8400-e29b-41d4-a716-446655440000`)
+- **Random integers**: Collision risks, complex generation logic
 
 **This Library's Approach**:
 - Store sequential integers internally
 - Expose encrypted integers externally (non-sequential, unpredictable)
-- **Adjustable bit size per column**: User ID = 40 bits, Post ID = 52 bits
+- Deterministic encryption: same seq always produces same ID (consistent seed data)
 - Automatic encryption via database trigger
+- Adjustable bit size per column
 
 ## Installation
 
@@ -40,7 +42,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.13.3"}]
+  [{:feistel_cipher, "~> 0.13.4"}]
 end
 ```
 
@@ -124,7 +126,7 @@ The `up_for_trigger/5` function accepts these options:
 
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
 - `bits`: Cipher bit size (default: 52, max: 62, must be even)
-  - **Choose different sizes per column**: Unlike UUIDs (fixed 36 chars), tailor each column's ID length
+  - **Choose different sizes per column**: Unlike UUIDs (fixed 16 bytes), tailor each column's ID length
   - Example: User ID = 40 bits (~1T values), Post ID = 52 bits (~4.5Q values)
   - Default 52 ensures JavaScript compatibility (`Number.MAX_SAFE_INTEGER = 2^53 - 1`)
   - Use 62 for maximum range if no browser/JS interaction needed
