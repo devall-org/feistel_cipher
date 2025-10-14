@@ -19,7 +19,7 @@ Encrypted integer IDs using Feistel cipher
 **This Library's Approach**:
 - Store sequential integers internally
 - Expose encrypted integers externally (non-sequential, unpredictable)
-- Deterministic encryption: same seq always produces same ID (consistent seed data)
+- Deterministic encryption: same insertion order always produces same encrypted ID (consistent seed data)
 - Automatic encryption via database trigger
 - Adjustable bit size per column
 
