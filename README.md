@@ -106,7 +106,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.13.2"}]
+  [{:feistel_cipher, "~> 0.13.3"}]
 end
 ```
 
@@ -241,6 +241,8 @@ create table(:posts) do
   add :disp_id, :bigint    # Encrypted, for public APIs
   add :title, :string
 end
+
+create unique_index(:posts, [:disp_id])
 
 execute FeistelCipher.up_for_trigger("public", "posts", "id", "disp_id")
 
