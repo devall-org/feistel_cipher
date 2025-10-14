@@ -191,10 +191,12 @@ defmodule FeistelCipher.MigrationTest do
           ])
 
         if expected do
-          assert [[^expected]] = result.rows,
+          [[actual]] = result.rows
+
+          assert actual == expected,
                  "Encryption output changed! This breaks backward compatibility.\n" <>
                    "Input: #{input}, Bits: #{bits}, Key: #{key}, Rounds: #{rounds}\n" <>
-                   "Expected: #{expected}, Got: #{inspect(result.rows)}"
+                   "Expected: #{expected}, Got: #{actual}"
         else
           # Print value for rounds that need golden values
           [[output]] = result.rows
@@ -238,8 +240,11 @@ defmodule FeistelCipher.MigrationTest do
               rounds
             ])
 
-          assert [[^input]] = decrypted.rows,
-                 "Reversibility failed for input: #{input}, bits: #{bits}, key: #{key}, rounds: #{rounds}"
+          [[actual]] = decrypted.rows
+
+          assert actual == input,
+                 "Reversibility failed for input: #{input}, bits: #{bits}, key: #{key}, rounds: #{rounds}\n" <>
+                   "Got: #{actual}"
         end
       end
     end
@@ -331,7 +336,8 @@ defmodule FeistelCipher.MigrationTest do
               bits
             ])
 
-          assert [[^input]] = decrypted.rows
+          [[actual]] = decrypted.rows
+          assert actual == input
         end
       end
     end
@@ -417,7 +423,8 @@ defmodule FeistelCipher.MigrationTest do
       decrypted =
         TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, key])
 
-      assert [[^seq]] = decrypted.rows
+      [[actual]] = decrypted.rows
+      assert actual == seq
     end
 
     test "encrypts multiple inserts correctly" do
@@ -435,7 +442,8 @@ defmodule FeistelCipher.MigrationTest do
         decrypted =
           TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, key])
 
-        assert [[^seq]] = decrypted.rows
+        [[actual]] = decrypted.rows
+        assert actual == seq
       end
     end
 
@@ -462,7 +470,10 @@ defmodule FeistelCipher.MigrationTest do
       TestRepo.query!("UPDATE test_posts SET title = 'Updated'")
 
       result = TestRepo.query!("SELECT seq, id, title FROM test_posts")
-      assert [[^original_seq, ^original_id, "Updated"]] = result.rows
+      [[actual_seq, actual_id, title]] = result.rows
+      assert actual_seq == original_seq
+      assert actual_id == original_id
+      assert title == "Updated"
 
       # Verify id is still valid encryption of seq
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
@@ -473,7 +484,8 @@ defmodule FeistelCipher.MigrationTest do
           key
         ])
 
-      assert [[^original_seq]] = decrypted.rows
+      [[decrypted_seq]] = decrypted.rows
+      assert decrypted_seq == original_seq
     end
 
     test "updating seq automatically updates id" do
@@ -488,7 +500,8 @@ defmodule FeistelCipher.MigrationTest do
       TestRepo.query!("UPDATE test_posts SET seq = $1", [new_seq])
 
       result = TestRepo.query!("SELECT seq, id FROM test_posts")
-      assert [[^new_seq, new_id]] = result.rows
+      [[actual_seq, new_id]] = result.rows
+      assert actual_seq == new_seq
 
       # id should have changed
       assert new_id != original_id
@@ -502,7 +515,8 @@ defmodule FeistelCipher.MigrationTest do
           key
         ])
 
-      assert [[^new_seq]] = decrypted.rows
+      [[decrypted_seq]] = decrypted.rows
+      assert decrypted_seq == new_seq
     end
 
     test "updating seq to NULL sets id to NULL" do
@@ -578,7 +592,8 @@ defmodule FeistelCipher.MigrationTest do
       decrypted =
         TestRepo.query!("SELECT public.feistel_encrypt($1, 52, $2, 16)", [id, key])
 
-      assert [[42]] = decrypted.rows
+      [[decrypted_seq]] = decrypted.rows
+      assert decrypted_seq == 42
 
       # Clean up
       TestRepo.query!("DROP TABLE IF EXISTS test_nullable_update CASCADE")
