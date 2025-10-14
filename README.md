@@ -21,72 +21,6 @@ Encrypted integer IDs using Feistel cipher
 - **Adjustable bit size per column**: User ID = 40 bits, Post ID = 52 bits
 - Automatic encryption via database trigger
 
-## How It Works
-
-The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a configurable Feistel network that transforms sequential integers into non-sequential encrypted integers with one-to-one mapping.
-
-<p align="center">
-  <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram" width="66%">
-</p>
-
-> **Note**: The diagram above illustrates a 2-round Feistel cipher for simplicity. By default, this library uses **16 rounds** for better security. The number of rounds is configurable (see [Trigger Options](#trigger-options)).
-
-### Self-Inverse Property
-
-The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
-
-**Mathematical Proof:**
-
-Let's denote the input as $(L_1, R_1)$ and the round function as $F(x)$.
-
-**First application (Encryption):**
-
-$$
-\begin{aligned}
-L_2 &= R_1, & R_2 &= L_1 \oplus F(R_1) \\
-L_3 &= R_2, & R_3 &= L_2 \oplus F(R_2) \\
-\text{Output} &= (R_3, L_3)
-\end{aligned}
-$$
-
-**Second application (Decryption) - Starting with $(R_3, L_3)$:**
-
-$$
-\begin{aligned}
-L_2' &= L_3, & R_2' &= R_3 \oplus F(L_3) \\
-&= L_3, & &= R_3 \oplus F(R_2) \\
-&= L_3, & &= (L_2 \oplus F(R_2)) \oplus F(R_2) \\
-&= L_3, & &= L_2 = R_1 \quad \text{(XOR cancellation)} \\
-\\
-L_3' &= R_2' = R_1, & R_3' &= L_2' \oplus F(R_2') \\
-&= R_1, & &= L_3 \oplus F(R_1) \\
-&= R_1, & &= R_2 \oplus F(R_1) \\
-&= R_1, & &= (L_1 \oplus F(R_1)) \oplus F(R_1) \\
-&= R_1, & &= L_1 \quad \text{(XOR cancellation)} \\
-\\
-\text{Output} &= (R_3', L_3') = (L_1, R_1) \quad \checkmark
-\end{aligned}
-$$
-
-**Key Insight:** The XOR operation's property $a \oplus b \oplus b = a$ ensures that each transformation is reversed when applied twice.
-
-**Database Implementation:**
-
-In the database trigger implementation, this means:
-```sql
--- Encryption: seq → id
-id = feistel_encrypt(seq, bits, key)
-
--- Decryption: id → seq (using the same function!)
-seq = feistel_encrypt(id, bits, key)
-```
-
-### Key Properties
-
-- **Deterministic**: Same input always produces same output
-- **Non-sequential**: Sequential inputs produce seemingly random outputs
-- **Collision-free**: One-to-one mapping within the bit range
-
 ## Installation
 
 > **Using Ash Framework?** 
@@ -213,7 +147,60 @@ execute FeistelCipher.up_for_trigger(
 )
 ```
 
-## Performance Considerations
+## Advanced Usage
+
+### Column Rename
+
+When renaming columns that have triggers, use `force_down_for_trigger/4` to safely drop and recreate the trigger:
+
+```elixir
+defmodule MyApp.Repo.Migrations.RenamePostsColumns do
+  use Ecto.Migration
+
+  def change do
+    # 1. Drop the old trigger
+    execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+    
+    # 2. Rename columns
+    rename table(:posts), :seq, to: :sequence
+    rename table(:posts), :id, to: :external_id
+    
+    # 3. Recreate trigger with SAME encryption parameters
+    # IMPORTANT: Generate key using OLD column names (seq, id)
+    old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
+    
+    execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
+      bits: 52,                  # Must match original
+      key: old_key,              # Key from OLD column names
+      rounds: 16,                # Must match original
+      functions_prefix: "public" # Must match original
+    )
+  end
+end
+```
+
+**⚠️ Critical**: When recreating triggers, ALL encryption parameters (`bits`, `key`, `rounds`, `functions_prefix`) MUST match the original values. Otherwise:
+- Updates will fail with exceptions
+- 1:1 mapping breaks (new inserts may produce duplicate encrypted values)
+
+> **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/4` which bypasses the guard.
+
+## Performance
+
+### Benchmark Results
+
+Encrypting 100,000 sequential values:
+
+| Rounds | Total Time | Per Encryption | Use Case |
+|--------|------------|----------------|----------|
+| 1      | 103 ms     | ~1.0μs         | Minimal obfuscation |
+| 2      | 131 ms     | ~1.3μs         | Illustration (diagrams/proofs) |
+| 4      | 178 ms     | ~1.8μs         | Light security |
+| 8      | 278 ms     | ~2.8μs         | Moderate security |
+| **16** | **444 ms** | **~4.4μs**     | **Default (recommended)** |
+| 32     | 867 ms     | ~8.7μs         | Maximum security |
+
+The overhead per INSERT/UPDATE is negligible (microseconds) even with 16 rounds.
 
 ### Primary Key Trade-offs
 
@@ -270,59 +257,6 @@ Then only expose `disp_id` in your APIs while keeping `id` internal.
 
 Choose FeistelCipher when you need UUIDv4-like randomness but 36 characters is excessive for your use case.
 
-## Advanced Usage
-
-### Column Rename
-
-When renaming columns that have triggers, use `force_down_for_trigger/4` to safely drop and recreate the trigger:
-
-```elixir
-defmodule MyApp.Repo.Migrations.RenamePostsColumns do
-  use Ecto.Migration
-
-  def change do
-    # 1. Drop the old trigger
-    execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
-    
-    # 2. Rename columns
-    rename table(:posts), :seq, to: :sequence
-    rename table(:posts), :id, to: :external_id
-    
-    # 3. Recreate trigger with SAME encryption parameters
-    # IMPORTANT: Generate key using OLD column names (seq, id)
-    old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
-    
-    execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
-      bits: 52,                  # Must match original
-      key: old_key,              # Key from OLD column names
-      rounds: 16,                # Must match original
-      functions_prefix: "public" # Must match original
-    )
-  end
-end
-```
-
-**⚠️ Critical**: When recreating triggers, ALL encryption parameters (`bits`, `key`, `rounds`, `functions_prefix`) MUST match the original values. Otherwise:
-- Updates will fail with exceptions
-- 1:1 mapping breaks (new inserts may produce duplicate encrypted values)
-
-> **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/4` which bypasses the guard.
-
-## Performance
-
-Benchmark results encrypting 100,000 sequential values:
-
-| Rounds | Total Time | Per Encryption | Use Case |
-|--------|------------|----------------|----------|
-| 1      | 103 ms     | ~1.0μs         | Minimal obfuscation |
-| 2      | 131 ms     | ~1.3μs         | Illustration (diagrams/proofs) |
-| 4      | 178 ms     | ~1.8μs         | Light security |
-| 8      | 278 ms     | ~2.8μs         | Moderate security |
-| **16** | **444 ms** | **~4.4μs**     | **Default (recommended)** |
-| 32     | 867 ms     | ~8.7μs         | Maximum security |
-
-The overhead per INSERT/UPDATE is negligible (microseconds) even with 16 rounds.
-
 ### Benchmark Environment
 
 - **CPU**: Apple M3 Pro (12 cores)
@@ -337,6 +271,72 @@ MIX_ENV=test mix run benchmark/rounds_benchmark.exs
 ```
 
 The benchmark encrypts 100,000 sequential values (1 to 100,000) using a SQL batch function to minimize overhead and measure pure encryption performance.
+
+## How It Works
+
+The Feistel cipher is a symmetric structure used in the construction of block ciphers. This library implements a configurable Feistel network that transforms sequential integers into non-sequential encrypted integers with one-to-one mapping.
+
+<p align="center">
+  <img src="assets/feistel-diagram.png" alt="Feistel Cipher Diagram" width="66%">
+</p>
+
+> **Note**: The diagram above illustrates a 2-round Feistel cipher for simplicity. By default, this library uses **16 rounds** for better security. The number of rounds is configurable (see [Trigger Options](#trigger-options)).
+
+### Self-Inverse Property
+
+The Feistel cipher is **self-inverse**: applying the same function twice returns the original value. This means encryption and decryption use the exact same algorithm.
+
+**Mathematical Proof:**
+
+Let's denote the input as $(L_1, R_1)$ and the round function as $F(x)$.
+
+**First application (Encryption):**
+
+$$
+\begin{aligned}
+L_2 &= R_1, & R_2 &= L_1 \oplus F(R_1) \\
+L_3 &= R_2, & R_3 &= L_2 \oplus F(R_2) \\
+\text{Output} &= (R_3, L_3)
+\end{aligned}
+$$
+
+**Second application (Decryption) - Starting with $(R_3, L_3)$:**
+
+$$
+\begin{aligned}
+L_2' &= L_3, & R_2' &= R_3 \oplus F(L_3) \\
+&= L_3, & &= R_3 \oplus F(R_2) \\
+&= L_3, & &= (L_2 \oplus F(R_2)) \oplus F(R_2) \\
+&= L_3, & &= L_2 = R_1 \quad \text{(XOR cancellation)} \\
+\\
+L_3' &= R_2' = R_1, & R_3' &= L_2' \oplus F(R_2') \\
+&= R_1, & &= L_3 \oplus F(R_1) \\
+&= R_1, & &= R_2 \oplus F(R_1) \\
+&= R_1, & &= (L_1 \oplus F(R_1)) \oplus F(R_1) \\
+&= R_1, & &= L_1 \quad \text{(XOR cancellation)} \\
+\\
+\text{Output} &= (R_3', L_3') = (L_1, R_1) \quad \checkmark
+\end{aligned}
+$$
+
+**Key Insight:** The XOR operation's property $a \oplus b \oplus b = a$ ensures that each transformation is reversed when applied twice.
+
+**Database Implementation:**
+
+In the database trigger implementation, this means:
+```sql
+-- Encryption: seq → id
+id = feistel_encrypt(seq, bits, key)
+
+-- Decryption: id → seq (using the same function!)
+seq = feistel_encrypt(id, bits, key)
+```
+
+### Key Properties
+
+- **Deterministic**: Same input always produces same output
+- **Non-sequential**: Sequential inputs produce seemingly random outputs
+- **Collision-free**: One-to-one mapping within the bit range
 
 ## License
 
