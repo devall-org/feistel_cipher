@@ -185,42 +185,9 @@ end
 
 > **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/4` which bypasses the guard.
 
-## Performance
+## Alternative: Display-Only IDs
 
-### Benchmark Results
-
-Encrypting 100,000 sequential values:
-
-| Rounds | Total Time | Per Encryption | Use Case |
-|--------|------------|----------------|----------|
-| 1      | 103 ms     | ~1.0μs         | Minimal obfuscation |
-| 2      | 131 ms     | ~1.3μs         | Illustration (diagrams/proofs) |
-| 4      | 178 ms     | ~1.8μs         | Light security |
-| 8      | 278 ms     | ~2.8μs         | Moderate security |
-| **16** | **444 ms** | **~4.4μs**     | **Default (recommended)** |
-| 32     | 867 ms     | ~8.7μs         | Maximum security |
-
-The overhead per INSERT/UPDATE is negligible (microseconds) even with 16 rounds.
-
-### Primary Key Trade-offs
-
-Using the encrypted `id` as the primary key means non-sequential values, similar to UUIDv4. This has performance implications:
-
-- **B-tree insert performance**: Random keys cause more page splits compared to sequential keys
-- **Sequential scan cache locality**: Non-sequential ordering reduces cache efficiency
-
-**When does this matter?**
-- High-volume insert workloads
-- Frequent sequential range scans over large datasets
-
-**When is it fine?**
-- Typical web applications with moderate insert rates
-- Encryption overhead (microseconds) is negligible compared to typical INSERT/UPDATE operations (milliseconds)
-- Most applications prioritize security/privacy over marginal insert performance
-
-### Alternative: Keep Sequential Primary Key
-
-If you need sequential primary key performance, use the encrypted value as a separate display column:
+If you prefer to keep your sequential `id` as the primary key, you can use Feistel cipher for display-only columns. This approach is similar to using [Hashids](https://hashids.org/) or other ID obfuscation libraries, but with database-native encryption.
 
 ```elixir
 # Migration
@@ -249,13 +216,22 @@ end
 
 Then only expose `disp_id` in your APIs while keeping `id` internal.
 
-### UUID Comparison
+**Advantages over Hashids:** Database-native (no encoding/decoding).
 
-- **UUIDv4**: Random, 36 characters, same non-sequential issues
-- **UUIDv7**: Sequential but exposes timestamp ordering
-- **FeistelCipher**: Random-like, adjustable size (up to 62 bits), no timestamp leakage
+## Performance
 
-Choose FeistelCipher when you need UUIDv4-like randomness but 36 characters is excessive for your use case.
+Encrypting 100,000 sequential values:
+
+| Rounds | Total Time | Per Encryption |
+|--------|------------|----------------|
+| 1      | 103 ms     | ~1.0μs         |
+| 2      | 131 ms     | ~1.3μs         |
+| 4      | 178 ms     | ~1.8μs         |
+| 8      | 278 ms     | ~2.8μs         |
+| **16** | **444 ms** | **~4.4μs**     |
+| 32     | 867 ms     | ~8.7μs         |
+
+**Default is 16 rounds** - provides good security/performance balance. The overhead per INSERT/UPDATE is negligible (microseconds).
 
 ### Benchmark Environment
 
