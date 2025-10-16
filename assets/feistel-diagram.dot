@@ -24,7 +24,7 @@ digraph feistel {
         color="#999999";
         margin=12;
         L2 [label="L₂", fillcolor="#ffe1e1"];
-        F1 [label="F(R₁)", fillcolor="#fff4e1"];
+        F1 [label="F(R₁, salt, key)", fillcolor="#fff4e1"];
         XOR1 [label="⊕", fillcolor="white", shape=circle, width=0.4, fixedsize=true];
         R2 [label="R₂", fillcolor="#e1ffe1"];
         {rank=same; L2; F1; XOR1; R2;}
@@ -37,7 +37,7 @@ digraph feistel {
         color="#999999";
         margin=12;
         L3 [label="L₃", fillcolor="#ffe1e1"];
-        F2 [label="F(R₂)", fillcolor="#fff4e1"];
+        F2 [label="F(R₂, salt, key)", fillcolor="#fff4e1"];
         XOR2 [label="⊕", fillcolor="white", shape=circle, width=0.4, fixedsize=true];
         R3 [label="R₃", fillcolor="#e1ffe1"];
         {rank=same; L3; F2; XOR2; R3;}
