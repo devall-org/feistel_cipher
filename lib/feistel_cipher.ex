@@ -78,8 +78,6 @@ defmodule FeistelCipher do
         half_mask  bigint := (1::bigint << half_bits) - 1;
         mask       bigint := (1::bigint << bits) - 1;
 
-        hash_input text;
-        hash_hex   text;
         hash_int   bigint;
 
       BEGIN
@@ -103,14 +101,12 @@ defmodule FeistelCipher do
         left_half  := (input >> half_bits) & half_mask;
         right_half := input & half_mask;
 
-        -- Feistel rounds with MD5-based round function
+        -- Feistel rounds with hash-based round function
         -- Using hash makes the round function non-linear and resistant to algebraic attacks
         -- Note: Round number is NOT included in hash to maintain encrypt/decrypt symmetry
         FOR i IN 1..rounds LOOP
           temp       := right_half;
-          hash_input := right_half::text || '_' || key::text || '_' || #{functions_salt}::text;
-          hash_hex   := substring(md5(hash_input), 1, 8);
-          hash_int   := ('x' || hash_hex)::bit(32)::bigint;
+          hash_int   := hashint8extended(right_half, hashint8extended(key, #{functions_salt}));
           right_half := left_half # (hash_int & half_mask);
           left_half  := temp;
         END LOOP;
