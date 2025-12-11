@@ -226,12 +226,12 @@ Encrypting 100,000 sequential values:
 
 | Rounds | Total Time | Per Encryption |
 |--------|------------|----------------|
-| 1      | 103 ms     | ~1.0μs         |
-| 2      | 131 ms     | ~1.3μs         |
-| 4      | 178 ms     | ~1.8μs         |
-| 8      | 278 ms     | ~2.8μs         |
-| **16** | **444 ms** | **~4.4μs**     |
-| 32     | 867 ms     | ~8.7μs         |
+| 1      | 133 ms     | ~1.3μs         |
+| 2      | 209 ms     | ~2.1μs         |
+| 4      | 361 ms     | ~3.6μs         |
+| 8      | 657 ms     | ~6.6μs         |
+| **16** | **1262 ms** | **~12.6μs**   |
+| 32     | 2417 ms    | ~24.2μs        |
 
 **Default is 16 rounds** - provides good security/performance balance. The overhead per INSERT/UPDATE is negligible (microseconds).
 
