@@ -42,7 +42,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.13.4"}]
+  [{:feistel_cipher, "~> 0.14.0"}]
 end
 ```
 
