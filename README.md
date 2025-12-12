@@ -226,14 +226,14 @@ Encrypting 100,000 sequential values:
 
 | Rounds | Total Time | Per Encryption |
 |--------|------------|----------------|
-| 1      | 58 ms      | ~0.6μs         |
-| 2      | 69 ms      | ~0.7μs         |
-| 4      | 87 ms      | ~0.9μs         |
-| 8      | 129 ms     | ~1.3μs         |
-| **16** | **199 ms** | **~2.0μs**     |
-| 32     | 345 ms     | ~3.5μs         |
+| 1      | 119 ms     | ~1.2μs         |
+| 2      | 197 ms     | ~2.0μs         |
+| 4      | 349 ms     | ~3.5μs         |
+| 8      | 609 ms     | ~6.1μs         |
+| **16** | **1190 ms**| **~11.9μs**    |
+| 32     | 2246 ms    | ~22.5μs        |
 
-**Default is 16 rounds** - provides good security/performance balance. The overhead per INSERT/UPDATE is negligible (microseconds).
+**Default is 16 rounds** - provides good security/performance balance with cryptographic HMAC-SHA256. The overhead per INSERT/UPDATE is negligible for most applications.
 
 ### Benchmark Environment
 
