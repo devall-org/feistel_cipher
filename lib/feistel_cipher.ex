@@ -56,6 +56,7 @@ defmodule FeistelCipher do
     validate_key!(functions_salt, "functions_salt")
 
     execute("CREATE SCHEMA IF NOT EXISTS #{functions_prefix}")
+    execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
     # Copied from https://wiki.postgresql.org/wiki/Pseudo_encrypt
     # Algorithm reference from https://www.youtube.com/watch?v=FGhj3CGxl8I
@@ -78,6 +79,7 @@ defmodule FeistelCipher do
         half_mask  bigint := (1::bigint << half_bits) - 1;
         mask       bigint := (1::bigint << bits) - 1;
 
+        hash_bytes bytea;
         hash_int   bigint;
 
       BEGIN
@@ -101,12 +103,16 @@ defmodule FeistelCipher do
         left_half  := (input >> half_bits) & half_mask;
         right_half := input & half_mask;
 
-        -- Feistel rounds with hash-based round function
-        -- Using hash makes the round function non-linear and resistant to algebraic attacks
+        -- Feistel rounds with HMAC-SHA256 round function
+        -- Using cryptographic HMAC makes the cipher resistant to all known attacks
         -- Note: Round number is NOT included in hash to maintain encrypt/decrypt symmetry
         FOR i IN 1..rounds LOOP
           temp       := right_half;
-          hash_int   := hashint8extended(right_half, hashint8extended(key, #{functions_salt}));
+          hash_bytes := hmac(int4send(right_half::int4), int4send(key::int4) || int4send(#{functions_salt}::int4), 'sha256');
+          hash_int   := get_byte(hash_bytes, 0)::bigint << 24
+                      | get_byte(hash_bytes, 1)::bigint << 16
+                      | get_byte(hash_bytes, 2)::bigint << 8
+                      | get_byte(hash_bytes, 3)::bigint;
           right_half := left_half # (hash_int & half_mask);
           left_half  := temp;
         END LOOP;
