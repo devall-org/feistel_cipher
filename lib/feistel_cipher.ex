@@ -2,7 +2,7 @@ defmodule FeistelCipher do
   @moduledoc false
 
   def table_seed(table) do
-    <<key::31, _::481>> = :crypto.hash(:sha512, table)
+    <<_::31, key::31, _::450>> = :crypto.hash(:sha512, table)
     key
   end
 
