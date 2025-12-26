@@ -68,10 +68,9 @@ defmodule FeistelCipher do
     # Since 31 bits (half of 62 bits) are multiplied by a 31-bit parameter,
     # the calculation result is also within the 62-bit range, making it safe for bigint.
     execute("""
-    CREATE FUNCTION #{functions_prefix}.feistel_encrypt(input bigint, bits int, key bigint, rounds int) returns bigint AS $$
+    CREATE FUNCTION #{functions_prefix}.feistel_cipher(value bigint, bits int, key bigint, rounds int) returns bigint AS $$
       DECLARE
-        i          int;
-
+        round      int;
         left_half  bigint;
         right_half bigint;
         temp       bigint;
@@ -79,35 +78,34 @@ defmodule FeistelCipher do
         half_bits  int    := bits / 2;
         half_mask  bigint := (1::bigint << half_bits) - 1;
         mask       bigint := (1::bigint << bits) - 1;
-
         hash_bytes bytea;
         hash_int   bigint;
 
       BEGIN
         IF bits < 2 OR bits > 62 OR bits % 2 = 1 THEN
-          RAISE EXCEPTION 'feistel bits must be an even number between 2 and 62: %', bits;
+          RAISE EXCEPTION 'feistel_cipher: bits must be an even number between 2 and 62: %', bits;
         END IF;
 
         IF key < 0 OR key >= (1::bigint << 31) THEN
-          RAISE EXCEPTION 'feistel key must be between 0 and 2^31-1: %', key;
+          RAISE EXCEPTION 'feistel_cipher: key must be between 0 and 2^31-1: %', key;
         END IF;
 
-        IF input > mask THEN
-          RAISE EXCEPTION 'feistel input is larger than % bits: %', bits, input;
+        IF value > mask THEN
+          RAISE EXCEPTION 'feistel_cipher: value is larger than % bits: %', bits, value;
         END IF;
 
         IF rounds < 1 OR rounds > 32 THEN
-          RAISE EXCEPTION 'feistel rounds must be between 1 and 32: %', rounds;
+          RAISE EXCEPTION 'feistel_cipher: rounds must be between 1 and 32: %', rounds;
         END IF;
 
-        -- Split input into left and right halves
-        left_half  := (input >> half_bits) & half_mask;
-        right_half := input & half_mask;
+        -- Split value into left and right halves
+        left_half  := (value >> half_bits) & half_mask;
+        right_half := value & half_mask;
 
         -- Feistel rounds with HMAC-SHA256 round function
         -- Using cryptographic HMAC makes the cipher resistant to all known attacks
         -- Note: Round number is NOT included in hash to maintain encrypt/decrypt symmetry
-        FOR i IN 1..rounds LOOP
+        FOR round IN 1..rounds LOOP
           temp       := right_half;
           hash_bytes := hmac(int4send(right_half::int4), int4send(key::int4) || int4send(#{functions_salt}::int4), 'sha256');
           hash_int   := get_byte(hash_bytes, 0)::bigint << 24
@@ -133,15 +131,15 @@ defmodule FeistelCipher do
     CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
       DECLARE
         -- Trigger parameters
-        bits        int;
-        key         bigint;
-        rounds      int;
-        from_column text;
-        to_column   text;
+        bits   int;
+        key    bigint;
+        rounds int;
 
         -- From and to values
-        from_value bigint;
-        to_value   bigint;
+        from_column text;
+        from_value  bigint;
+        to_column   text;
+        to_value    bigint;
 
         -- Temporary values for validation
         decrypted      bigint;
@@ -177,16 +175,16 @@ defmodule FeistelCipher do
           to_value := NULL;
         ELSE
           -- Encrypt the from_value to get to_value
-          to_value := #{functions_prefix}.feistel_encrypt(from_value, bits, key, rounds);
+          to_value := #{functions_prefix}.feistel_cipher(from_value, bits, key, rounds);
 
           -- Sanity check: Verify encryption is reversible
           -- This condition should never occur in practice as Feistel cipher is
           -- mathematically guaranteed to be reversible. If this fails, it indicates
-          -- a serious bug in the feistel_encrypt function implementation.
-          decrypted := #{functions_prefix}.feistel_encrypt(to_value, bits, key, rounds);
+          -- a serious bug in the feistel_cipher function implementation.
+          decrypted := #{functions_prefix}.feistel_cipher(to_value, bits, key, rounds);
 
           IF decrypted IS DISTINCT FROM from_value THEN
-            RAISE EXCEPTION 'feistel_encrypt function does not have an inverse (from: %, to: %, decrypted: %, bits: %, key: %, rounds: %)',
+            RAISE EXCEPTION 'feistel_column_trigger: feistel_cipher does not have an inverse (from: %, to: %, decrypted: %, bits: %, key: %, rounds: %)',
               from_value, to_value, decrypted, bits, key, rounds;
           END IF;
         END IF;
@@ -214,7 +212,7 @@ defmodule FeistelCipher do
   def down_for_functions(opts \\ []) when is_list(opts) do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
-    execute("DROP FUNCTION #{functions_prefix}.feistel_encrypt(bigint, int, bigint, int)")
+    execute("DROP FUNCTION #{functions_prefix}.feistel_cipher(bigint, int, bigint, int)")
     execute("DROP FUNCTION #{functions_prefix}.feistel_column_trigger()")
   end
 
@@ -285,7 +283,7 @@ defmodule FeistelCipher do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'FeistelCipher trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
+      RAISE EXCEPTION 'down_for_trigger: trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
     END
     $$;
 
