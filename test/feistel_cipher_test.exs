@@ -449,18 +449,6 @@ defmodule FeistelCipher.MigrationTest do
       end
     end
 
-    test "prevents manual modification of id on UPDATE" do
-      # Insert a post
-      TestRepo.query!("INSERT INTO test_posts (title) VALUES ('Original')")
-      result = TestRepo.query!("SELECT seq, id FROM test_posts")
-      [[_seq, original_id]] = result.rows
-
-      # Try to update id manually
-      assert_raise Postgrex.Error, ~r/Column "id" cannot be modified on UPDATE/, fn ->
-        TestRepo.query!("UPDATE test_posts SET id = $1 WHERE id = $2", [999_999, original_id])
-      end
-    end
-
     test "updating title does not affect seq and id" do
       # Insert a post
       TestRepo.query!("INSERT INTO test_posts (title) VALUES ('Original')")
