@@ -58,8 +58,9 @@ defmodule FeistelCipher do
     execute("CREATE SCHEMA IF NOT EXISTS #{functions_prefix}")
     execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
-    # Copied from https://wiki.postgresql.org/wiki/Pseudo_encrypt
-    # Algorithm reference from https://www.youtube.com/watch?v=FGhj3CGxl8I
+    # Feistel cipher implementation based on https://wiki.postgresql.org/wiki/Pseudo_encrypt
+    # Enhanced with key-based HMAC-SHA256 for cryptographic security
+    # Algorithm reference: https://www.youtube.com/watch?v=FGhj3CGxl8I
 
     # bigint is 64 bits, but excluding negative numbers, only 63 bits are usable.
     # Limited to a maximum of 62 bits as it needs to be halved for the operation.
@@ -143,9 +144,8 @@ defmodule FeistelCipher do
         to_value   bigint;
 
         -- Temporary values for validation
-        decrypted     bigint;
-        old_to_value  bigint;
-        new_to_value  bigint;
+        decrypted      bigint;
+        old_from_value bigint;
 
       BEGIN
         -- Extract trigger parameters
@@ -155,24 +155,22 @@ defmodule FeistelCipher do
         to_column   := TG_ARGV[3];
         rounds      := TG_ARGV[4]::int;
 
-        -- Guard: Prevent manual modification of to_column during UPDATE
-        -- The to_column should only be set automatically based on the from_column.
-        -- Direct modification would break the encryption consistency.
+        -- Early return: If from_column is not modified on UPDATE, skip re-encryption.
+        -- This allows manual modification of to_column if from_column remains unchanged.
         IF TG_OP = 'UPDATE' THEN
-          EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', to_column, to_column)
-          INTO old_to_value, new_to_value
+          EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', from_column, from_column)
+          INTO old_from_value, from_value
           USING OLD, NEW;
 
-          IF old_to_value != new_to_value THEN
-            RAISE EXCEPTION 'Column "%" cannot be modified on UPDATE (OLD.%: %, NEW.%: %)',
-              to_column, to_column, old_to_value, to_column, new_to_value;
+          IF old_from_value IS NOT DISTINCT FROM from_value THEN
+            RETURN NEW;
           END IF;
+        ELSE
+          -- Get the from_value from the from_column (for INSERT)
+          EXECUTE format('SELECT ($1).%I::bigint', from_column)
+          INTO from_value
+          USING NEW;
         END IF;
-
-        -- Get the from_value from the from_column
-        EXECUTE format('SELECT ($1).%I::bigint', from_column)
-        INTO from_value
-        USING NEW;
 
         -- Handle NULL case early
         IF from_value IS NULL THEN
@@ -187,7 +185,7 @@ defmodule FeistelCipher do
           -- a serious bug in the feistel_encrypt function implementation.
           decrypted := #{functions_prefix}.feistel_encrypt(to_value, bits, key, rounds);
 
-          IF decrypted != from_value THEN
+          IF decrypted IS DISTINCT FROM from_value THEN
             RAISE EXCEPTION 'feistel_encrypt function does not have an inverse (from: %, to: %, decrypted: %, bits: %, key: %, rounds: %)',
               from_value, to_value, decrypted, bits, key, rounds;
           END IF;
