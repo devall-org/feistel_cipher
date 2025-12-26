@@ -8,7 +8,7 @@ Ecto.Migrator.run(TestRepo, [{0, FeistelCipher.TestMigrations.AddFeistelCipher}]
 
 # Create benchmark utility function that encrypts multiple values
 TestRepo.query!("""
-CREATE OR REPLACE FUNCTION public.feistel_encrypt_batch(
+CREATE OR REPLACE FUNCTION public.feistel_cipher_batch(
   start_val bigint,
   end_val bigint,
   bits int,
@@ -20,7 +20,7 @@ DECLARE
   result bigint;
 BEGIN
   FOR i IN start_val..end_val LOOP
-    result := public.feistel_encrypt(i, bits, key, rounds);
+    result := public.feistel_cipher(i, bits, key, rounds);
   END LOOP;
   RETURN result;
 END;
@@ -43,7 +43,7 @@ IO.puts("Key: #{key}\n")
 Benchee.run(
   %{
     "1 round" => fn ->
-      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 1)", [
+      TestRepo.query!("SELECT public.feistel_cipher_batch($1, $2, $3, $4, 1)", [
         start_val,
         end_val,
         bits,
@@ -51,7 +51,7 @@ Benchee.run(
       ])
     end,
     "2 rounds (diagram)" => fn ->
-      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 2)", [
+      TestRepo.query!("SELECT public.feistel_cipher_batch($1, $2, $3, $4, 2)", [
         start_val,
         end_val,
         bits,
@@ -59,7 +59,7 @@ Benchee.run(
       ])
     end,
     "4 rounds" => fn ->
-      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 4)", [
+      TestRepo.query!("SELECT public.feistel_cipher_batch($1, $2, $3, $4, 4)", [
         start_val,
         end_val,
         bits,
@@ -67,7 +67,7 @@ Benchee.run(
       ])
     end,
     "8 rounds" => fn ->
-      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 8)", [
+      TestRepo.query!("SELECT public.feistel_cipher_batch($1, $2, $3, $4, 8)", [
         start_val,
         end_val,
         bits,
@@ -75,7 +75,7 @@ Benchee.run(
       ])
     end,
     "16 rounds (default)" => fn ->
-      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 16)", [
+      TestRepo.query!("SELECT public.feistel_cipher_batch($1, $2, $3, $4, 16)", [
         start_val,
         end_val,
         bits,
@@ -83,7 +83,7 @@ Benchee.run(
       ])
     end,
     "32 rounds" => fn ->
-      TestRepo.query!("SELECT public.feistel_encrypt_batch($1, $2, $3, $4, 32)", [
+      TestRepo.query!("SELECT public.feistel_cipher_batch($1, $2, $3, $4, 32)", [
         start_val,
         end_val,
         bits,
@@ -101,7 +101,7 @@ Benchee.run(
 
 # Cleanup
 TestRepo.query!(
-  "DROP FUNCTION IF EXISTS public.feistel_encrypt_batch(bigint, bigint, int, bigint, int)"
+  "DROP FUNCTION IF EXISTS public.feistel_cipher_batch(bigint, bigint, int, bigint, int)"
 )
 
 Ecto.Migrator.run(TestRepo, [{0, FeistelCipher.TestMigrations.AddFeistelCipher}], :down,
