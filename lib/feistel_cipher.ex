@@ -135,9 +135,9 @@ defmodule FeistelCipher do
         -- Trigger parameters
         bits        int;
         key         bigint;
+        rounds      int;
         from_column text;
         to_column   text;
-        rounds      int;
 
         -- From and to values
         from_value bigint;
@@ -151,9 +151,9 @@ defmodule FeistelCipher do
         -- Extract trigger parameters
         bits        := TG_ARGV[0]::int;
         key         := TG_ARGV[1]::bigint;
-        from_column := TG_ARGV[2];
-        to_column   := TG_ARGV[3];
-        rounds      := TG_ARGV[4]::int;
+        rounds      := TG_ARGV[2]::int;
+        from_column := TG_ARGV[3];
+        to_column   := TG_ARGV[4];
 
         -- Early return: If from_column is not modified on UPDATE, skip re-encryption.
         -- This allows manual modification of to_column if from_column remains unchanged.
@@ -263,7 +263,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, '#{from}', '#{to}', #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, #{rounds}, '#{from}', '#{to}');
     """
   end
 
