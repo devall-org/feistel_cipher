@@ -717,7 +717,9 @@ defmodule FeistelCipher.MigrationTest do
 
       TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ('Test')")
 
-      result = TestRepo.query!("SELECT id, extract(epoch from now())::bigint FROM test_time_posts")
+      result =
+        TestRepo.query!("SELECT id, extract(epoch from now())::bigint FROM test_time_posts")
+
       [[id, epoch_now]] = result.rows
 
       # Calculate expected time_value
@@ -759,9 +761,7 @@ defmodule FeistelCipher.MigrationTest do
       TestRepo.query!("INSERT INTO test_encrypt_time (title) VALUES ('Test')")
 
       result =
-        TestRepo.query!(
-          "SELECT id, extract(epoch from now())::bigint FROM test_encrypt_time"
-        )
+        TestRepo.query!("SELECT id, extract(epoch from now())::bigint FROM test_encrypt_time")
 
       [[id, epoch_now]] = result.rows
 
@@ -850,6 +850,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Extract time prefix - should be in range [0, 15] due to modulo
       time_prefix = Bitwise.bsr(id, data_bits)
+
       assert time_prefix >= 0 and time_prefix <= 15,
              "Time prefix should be in range [0, 15] after modulo, got: #{time_prefix}"
     end
@@ -989,9 +990,7 @@ defmodule FeistelCipher.MigrationTest do
       TestRepo.query!("INSERT INTO test_time_nullable (seq, title) VALUES (42, 'Value Test')")
 
       result =
-        TestRepo.query!(
-          "SELECT seq, id FROM test_time_nullable WHERE title = 'Value Test'"
-        )
+        TestRepo.query!("SELECT seq, id FROM test_time_nullable WHERE title = 'Value Test'")
 
       assert [[42, id]] = result.rows
       assert id != nil
@@ -1086,20 +1085,20 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "raises when encrypt_time: true and time_bits is odd" do
-      assert_raise ArgumentError, ~r/time_bits must be an even number when encrypt_time is true/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          time_bits: 11,
-          encrypt_time: true,
-          data_bits: 40
-        )
-      end
+      assert_raise ArgumentError,
+                   ~r/time_bits must be an even number when encrypt_time is true/,
+                   fn ->
+                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                       time_bits: 11,
+                       encrypt_time: true,
+                       data_bits: 40
+                     )
+                   end
     end
 
     test "raises when time_bucket is not positive" do
       assert_raise ArgumentError, ~r/time_bucket must be positive/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          time_bucket: 0
-        )
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id", time_bucket: 0)
       end
     end
 
@@ -1123,12 +1122,10 @@ defmodule FeistelCipher.MigrationTest do
 
     test "includes encrypt_time flag in SQL" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          encrypt_time: true
-        )
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id", encrypt_time: true)
 
-      # encrypt_time_int = 1
-      assert sql =~ ", 1);"
+      # encrypt_time_int = 1 (6th arg: from, to, time_bits, time_offset, time_bucket, encrypt_time, ...)
+      assert sql =~ ", 1, 40,"
     end
   end
 
