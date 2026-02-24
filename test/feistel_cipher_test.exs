@@ -1084,6 +1084,18 @@ defmodule FeistelCipher.MigrationTest do
       end
     end
 
+    test "raises when encrypt_time: true and time_bits < 2" do
+      assert_raise ArgumentError,
+                   ~r/time_bits must be >= 2 when encrypt_time is true/,
+                   fn ->
+                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                       time_bits: 0,
+                       encrypt_time: true,
+                       data_bits: 40
+                     )
+                   end
+    end
+
     test "raises when encrypt_time: true and time_bits is odd" do
       assert_raise ArgumentError,
                    ~r/time_bits must be an even number when encrypt_time is true/,

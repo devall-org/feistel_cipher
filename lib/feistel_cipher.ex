@@ -281,9 +281,16 @@ defmodule FeistelCipher do
       raise ArgumentError, "time_bits must be non-negative, got: #{time_bits}"
     end
 
-    if encrypt_time and rem(time_bits, 2) != 0 do
-      raise ArgumentError,
-            "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
+    if encrypt_time do
+      unless time_bits >= 2 do
+        raise ArgumentError,
+              "time_bits must be >= 2 when encrypt_time is true, got: #{time_bits}"
+      end
+
+      if rem(time_bits, 2) != 0 do
+        raise ArgumentError,
+              "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
+      end
     end
 
     time_offset = Keyword.get(opts, :time_offset, 0)
