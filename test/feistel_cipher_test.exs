@@ -1124,8 +1124,8 @@ defmodule FeistelCipher.MigrationTest do
       sql =
         FeistelCipher.up_for_trigger("public", "users", "seq", "id", encrypt_time: true)
 
-      # encrypt_time_int = 1 (6th arg: from, to, time_bits, time_offset, time_bucket, encrypt_time, ...)
-      assert sql =~ ", 1, 40,"
+      # encrypt_time = true (6th arg: from, to, time_bits, time_offset, time_bucket, encrypt_time, ...)
+      assert sql =~ ", true, 40,"
     end
   end
 

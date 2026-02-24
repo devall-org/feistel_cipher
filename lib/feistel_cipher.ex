@@ -136,7 +136,7 @@ defmodule FeistelCipher do
         time_bits    int;
         time_offset  bigint;
         time_bucket  bigint;
-        encrypt_time int;
+        encrypt_time boolean;
         data_bits    int;
         key          bigint;
         rounds       int;
@@ -163,7 +163,7 @@ defmodule FeistelCipher do
         time_bits    := COALESCE(TG_ARGV[2]::int, 0);
         time_offset  := COALESCE(TG_ARGV[3]::bigint, 0);
         time_bucket  := COALESCE(TG_ARGV[4]::bigint, 1);
-        encrypt_time := COALESCE(TG_ARGV[5]::int, 0);
+        encrypt_time := COALESCE(TG_ARGV[5]::boolean, false);
         data_bits    := TG_ARGV[6]::int;
         key          := TG_ARGV[7]::bigint;
         rounds       := TG_ARGV[8]::int;
@@ -195,7 +195,7 @@ defmodule FeistelCipher do
           time_value := floor((extract(epoch from now()) - time_offset::double precision) / time_bucket::double precision)::bigint;
           time_value := time_value & ((1::bigint << time_bits) - 1);
 
-          IF encrypt_time = 1 AND time_bits > 0 THEN
+          IF encrypt_time AND time_bits > 0 THEN
             time_component := #{functions_prefix}.feistel_cipher(time_value, time_bits, key, rounds);
           ELSE
             time_component := time_value;
@@ -319,14 +319,14 @@ defmodule FeistelCipher do
     validate_key!(key, "key")
 
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
-    encrypt_time_int = if encrypt_time, do: 1, else: 0
+    encrypt_time_str = if encrypt_time, do: "true", else: "false"
 
     """
     CREATE TRIGGER #{trigger_name(table, from, to)}
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger('#{from}', '#{to}', #{time_bits}, #{time_offset}, #{time_bucket}, #{encrypt_time_int}, #{data_bits}, #{key}, #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger('#{from}', '#{to}', #{time_bits}, #{time_offset}, #{time_bucket}, #{encrypt_time_str}, #{data_bits}, #{key}, #{rounds});
     """
   end
 
