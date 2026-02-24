@@ -1001,12 +1001,8 @@ defmodule FeistelCipher.MigrationTest do
   end
 
   describe "up_for_trigger/5" do
-    test "generates correct SQL with time_bits > 0" do
-      sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          time_offset: 1_735_689_600,
-          time_bucket: 3600
-        )
+    test "generates correct SQL with defaults" do
+      sql = FeistelCipher.up_for_trigger("public", "users", "seq", "id")
 
       assert sql =~ "CREATE TRIGGER"
       assert sql =~ "users_encrypt_seq_to_id_trigger"
@@ -1016,10 +1012,10 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "40"
       assert sql =~ "'seq'"
       assert sql =~ "'id'"
-      # default time_bits: 12
+      # default time_bits: 12, time_offset: 0, time_bucket: 86400
       assert sql =~ "12"
-      assert sql =~ "1735689600"
-      assert sql =~ "3600"
+      assert sql =~ ", 0,"
+      assert sql =~ "86400"
     end
 
     test "generates correct SQL with time_bits: 0" do
@@ -1036,9 +1032,7 @@ defmodule FeistelCipher.MigrationTest do
       sql =
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
           data_bits: 32,
-          time_bits: 8,
-          time_offset: 0,
-          time_bucket: 1
+          time_bits: 8
         )
 
       assert sql =~ "32"
@@ -1086,9 +1080,7 @@ defmodule FeistelCipher.MigrationTest do
       assert_raise ArgumentError, ~r/time_bits \+ data_bits must be <= 62/, fn ->
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
           data_bits: 52,
-          time_bits: 12,
-          time_offset: 0,
-          time_bucket: 1
+          time_bits: 12
         )
       end
     end
@@ -1098,27 +1090,7 @@ defmodule FeistelCipher.MigrationTest do
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
           data_bits: 40,
           time_bits: 11,
-          time_offset: 0,
-          time_bucket: 1,
           encrypt_time: true
-        )
-      end
-    end
-
-    test "raises when time_bits > 0 and time_offset missing" do
-      assert_raise ArgumentError, ~r/time_offset is required when time_bits > 0/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          time_bits: 12,
-          time_bucket: 3600
-        )
-      end
-    end
-
-    test "raises when time_bits > 0 and time_bucket missing" do
-      assert_raise ArgumentError, ~r/time_bucket is required when time_bits > 0/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          time_bits: 12,
-          time_offset: 0
         )
       end
     end
@@ -1126,8 +1098,6 @@ defmodule FeistelCipher.MigrationTest do
     test "raises when time_bucket is not positive" do
       assert_raise ArgumentError, ~r/time_bucket must be positive/, fn ->
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          time_bits: 12,
-          time_offset: 0,
           time_bucket: 0
         )
       end
@@ -1154,10 +1124,6 @@ defmodule FeistelCipher.MigrationTest do
     test "includes encrypt_time flag in SQL" do
       sql =
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          data_bits: 40,
-          time_bits: 12,
-          time_offset: 0,
-          time_bucket: 1,
           encrypt_time: true
         )
 

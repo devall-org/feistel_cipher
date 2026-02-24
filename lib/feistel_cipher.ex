@@ -191,7 +191,7 @@ defmodule FeistelCipher do
         ELSE
           -- Calculate time component
           -- When time_bits = 0: time_value & 0 = 0, so time_component = 0
-          -- and (0 << data_bits) | data_component = data_component (original behavior)
+          -- and (0 << data_bits) | data_component = data_component (no time prefix)
           time_value := floor((extract(epoch from now()) - time_offset::double precision) / time_bucket::double precision)::bigint;
           time_value := time_value & ((1::bigint << time_bits) - 1);
 
@@ -252,9 +252,9 @@ defmodule FeistelCipher do
 
   ## Options
 
-  * `:time_bits` - Time prefix bits (default: 12). Set to 0 for original behavior (no time prefix). ⚠️ Cannot be changed after creation.
-  * `:time_offset` - Base epoch in Unix seconds (required when time_bits > 0). Example: 1735689600 for 2025-01-01 UTC. ⚠️ Cannot be changed after creation.
-  * `:time_bucket` - Time bucket size in seconds (required when time_bits > 0). Example: 3600 for 1 hour. ⚠️ Cannot be changed after creation.
+  * `:time_bits` - Time prefix bits (default: 12). Set to 0 for no time prefix. ⚠️ Cannot be changed after creation.
+  * `:time_offset` - Base epoch in Unix seconds (default: 0). ⚠️ Cannot be changed after creation.
+  * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). ⚠️ Cannot be changed after creation.
   * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. ⚠️ Cannot be changed after creation.
   * `:data_bits` - Data cipher bits (default: 40, must be even). ⚠️ Cannot be changed after creation.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. ⚠️ Cannot be changed after creation.
@@ -263,11 +263,10 @@ defmodule FeistelCipher do
 
   ## Examples
 
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
-        time_offset: 1735689600, time_bucket: 3600)
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
 
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
-        time_bits: 8, time_offset: 1735689600, time_bucket: 86400, data_bits: 32)
+        time_bits: 8, time_offset: 1735689600, time_bucket: 3600, data_bits: 32)
 
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
         time_bits: 0)
@@ -287,33 +286,13 @@ defmodule FeistelCipher do
             "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
     end
 
-    time_offset =
-      if time_bits > 0 do
-        unless Keyword.has_key?(opts, :time_offset) do
-          raise ArgumentError, "time_offset is required when time_bits > 0"
-        end
+    time_offset = Keyword.get(opts, :time_offset, 0)
 
-        Keyword.fetch!(opts, :time_offset)
-      else
-        Keyword.get(opts, :time_offset, 0)
-      end
+    time_bucket = Keyword.get(opts, :time_bucket, 86400)
 
-    time_bucket =
-      if time_bits > 0 do
-        unless Keyword.has_key?(opts, :time_bucket) do
-          raise ArgumentError, "time_bucket is required when time_bits > 0"
-        end
-
-        bucket = Keyword.fetch!(opts, :time_bucket)
-
-        unless bucket > 0 do
-          raise ArgumentError, "time_bucket must be positive, got: #{bucket}"
-        end
-
-        bucket
-      else
-        Keyword.get(opts, :time_bucket, 1)
-      end
+    unless time_bucket > 0 do
+      raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
+    end
 
     data_bits = Keyword.get(opts, :data_bits, 40)
 

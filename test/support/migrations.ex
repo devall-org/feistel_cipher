@@ -42,23 +42,13 @@ defmodule FeistelCipher.TestMigrations do
   defmodule CreatePosts do
     use Ecto.Migration
 
-    # 2025-01-01 00:00:00 UTC
-    @time_offset 1_735_689_600
-    # 1 hour
-    @time_bucket 3600
-
     def up do
       create table(:posts) do
         add(:seq, :bigserial)
         add(:title, :string)
       end
 
-      execute(
-        FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
-          time_offset: @time_offset,
-          time_bucket: @time_bucket
-        )
-      )
+      execute(FeistelCipher.up_for_trigger("public", "posts", "seq", "id"))
     end
 
     def down do

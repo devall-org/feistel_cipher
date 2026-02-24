@@ -151,7 +151,7 @@ The `up_for_trigger/5` function accepts these options:
 > ⚠️ **Important**: Once a trigger is created, encryption parameters cannot be changed. Changing them would break encryption consistency for existing data.
 
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
-- `time_bits`: Time prefix bits (default: 12). Set to 0 for no time prefix (original behavior)
+- `time_bits`: Time prefix bits (default: 12). Set to 0 for no time prefix
 - `time_offset`: Base epoch in Unix seconds (required when `time_bits > 0`)
   - Example: `1_735_689_600` for 2025-01-01 00:00:00 UTC
 - `time_bucket`: Time bucket size in seconds (required when `time_bits > 0`)
@@ -190,7 +190,7 @@ execute FeistelCipher.up_for_trigger(
 )
 ```
 
-Example without time prefix (original behavior):
+Example without time prefix:
 ```elixir
 execute FeistelCipher.up_for_trigger(
   "public", "posts", "seq", "id",
