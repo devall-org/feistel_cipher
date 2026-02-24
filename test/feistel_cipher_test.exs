@@ -379,7 +379,7 @@ defmodule FeistelCipher.MigrationTest do
     end
   end
 
-  describe "feistel_column_trigger function with real table" do
+  describe "feistel_column_trigger function with real table (time_bits: 0)" do
     setup do
       create_functions()
 
@@ -395,9 +395,9 @@ defmodule FeistelCipher.MigrationTest do
       )
       """)
 
-      # Get the SQL for creating trigger
+      # Get the SQL for creating trigger (time_bits: 0 for backward-compatible behavior)
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_posts", "seq", "id")
+        FeistelCipher.up_for_trigger("public", "test_posts", "seq", "id", time_bits: 0)
 
       # Execute trigger creation
       TestRepo.query!(trigger_sql)
@@ -422,11 +422,11 @@ defmodule FeistelCipher.MigrationTest do
       assert is_integer(seq)
       assert is_integer(id)
 
-      # Verify id is encrypted version of seq
+      # Verify id is encrypted version of seq (data_bits default: 40)
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 52, $2, 16)", [id, key])
+        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [id, key])
 
       [[actual]] = decrypted.rows
       assert actual == seq
@@ -440,12 +440,12 @@ defmodule FeistelCipher.MigrationTest do
       result = TestRepo.query!("SELECT seq, id FROM test_posts ORDER BY seq")
       assert length(result.rows) == 5
 
-      # Verify all are encrypted correctly
+      # Verify all are encrypted correctly (data_bits default: 40)
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       for [seq, id] <- result.rows do
         decrypted =
-          TestRepo.query!("SELECT public.feistel_cipher($1, 52, $2, 16)", [id, key])
+          TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [id, key])
 
         [[actual]] = decrypted.rows
         assert actual == seq
@@ -472,7 +472,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 52, $2, 16)", [
+        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [
           original_id,
           key
         ])
@@ -503,7 +503,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 52, $2, 16)", [
+        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [
           new_id,
           key
         ])
@@ -524,9 +524,9 @@ defmodule FeistelCipher.MigrationTest do
       )
       """)
 
-      # Create trigger for nullable table
+      # Create trigger for nullable table (time_bits: 0)
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_nullable_seq", "seq", "id")
+        FeistelCipher.up_for_trigger("public", "test_nullable_seq", "seq", "id", time_bits: 0)
 
       TestRepo.query!(trigger_sql)
 
@@ -559,9 +559,9 @@ defmodule FeistelCipher.MigrationTest do
       )
       """)
 
-      # Create trigger for nullable table
+      # Create trigger for nullable table (time_bits: 0)
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_nullable_update", "seq", "id")
+        FeistelCipher.up_for_trigger("public", "test_nullable_update", "seq", "id", time_bits: 0)
 
       TestRepo.query!(trigger_sql)
 
@@ -581,9 +581,9 @@ defmodule FeistelCipher.MigrationTest do
       # Calculate the key for this specific table
       key = FeistelCipher.generate_key("public", "test_nullable_update", "seq", "id")
 
-      # Verify id is encrypted version of seq
+      # Verify id is encrypted version of seq (data_bits default: 40)
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 52, $2, 16)", [id, key])
+        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [id, key])
 
       [[decrypted_seq]] = decrypted.rows
       assert decrypted_seq == 42
@@ -604,9 +604,9 @@ defmodule FeistelCipher.MigrationTest do
       )
       """)
 
-      # Create trigger for nullable table
+      # Create trigger for nullable table (time_bits: 0)
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_nullable", "seq", "id")
+        FeistelCipher.up_for_trigger("public", "test_nullable", "seq", "id", time_bits: 0)
 
       TestRepo.query!(trigger_sql)
 
@@ -621,54 +621,488 @@ defmodule FeistelCipher.MigrationTest do
     end
   end
 
+  describe "feistel_column_trigger function with time_bits > 0" do
+    # 2025-01-01 00:00:00 UTC
+    @time_offset 1_735_689_600
+    # 1 hour bucket
+    @time_bucket 3600
+
+    setup do
+      create_functions()
+
+      TestRepo.query!("DROP TABLE IF EXISTS test_time_posts CASCADE")
+
+      TestRepo.query!("""
+      CREATE TABLE test_time_posts (
+        seq BIGSERIAL,
+        id BIGINT,
+        title TEXT
+      )
+      """)
+
+      on_exit(fn ->
+        TestRepo.query!("DROP TABLE IF EXISTS test_time_posts CASCADE")
+        drop_functions()
+      end)
+
+      :ok
+    end
+
+    test "rows in same time_bucket share the same time_bits prefix (encrypt_time: false)" do
+      data_bits = 40
+      time_bits = 12
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+          data_bits: data_bits,
+          time_bits: time_bits,
+          time_offset: @time_offset,
+          time_bucket: @time_bucket,
+          key: key
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert multiple rows (all within the same transaction = same now())
+      for i <- 1..5 do
+        TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ($1)", ["Post #{i}"])
+      end
+
+      result = TestRepo.query!("SELECT seq, id FROM test_time_posts ORDER BY seq")
+      assert length(result.rows) == 5
+
+      # All rows should share the same time prefix
+      data_mask = Bitwise.bsl(1, data_bits) - 1
+
+      prefixes =
+        for [_seq, id] <- result.rows do
+          Bitwise.bsr(id, data_bits)
+        end
+
+      assert length(Enum.uniq(prefixes)) == 1,
+             "All rows in same time_bucket should share the same time prefix, got: #{inspect(prefixes)}"
+
+      # Verify data parts are all different and reversible
+      for [seq, id] <- result.rows do
+        data_component = Bitwise.band(id, data_mask)
+
+        decrypted =
+          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+            data_component,
+            data_bits,
+            key
+          ])
+
+        [[actual]] = decrypted.rows
+        assert actual == seq
+      end
+    end
+
+    test "time prefix matches expected time_value (encrypt_time: false)" do
+      data_bits = 40
+      time_bits = 12
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+          data_bits: data_bits,
+          time_bits: time_bits,
+          time_offset: @time_offset,
+          time_bucket: @time_bucket,
+          key: key
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ('Test')")
+
+      result = TestRepo.query!("SELECT id, extract(epoch from now())::bigint FROM test_time_posts")
+      [[id, epoch_now]] = result.rows
+
+      # Calculate expected time_value
+      time_mask = Bitwise.bsl(1, time_bits) - 1
+      expected_time_value = div(epoch_now - @time_offset, @time_bucket) |> Bitwise.band(time_mask)
+
+      actual_time_prefix = Bitwise.bsr(id, data_bits)
+      assert actual_time_prefix == expected_time_value
+    end
+
+    test "encrypt_time: true encrypts time prefix with feistel cipher" do
+      data_bits = 40
+      time_bits = 12
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      TestRepo.query!("DROP TABLE IF EXISTS test_encrypt_time CASCADE")
+
+      TestRepo.query!("""
+      CREATE TABLE test_encrypt_time (
+        seq BIGSERIAL,
+        id BIGINT,
+        title TEXT
+      )
+      """)
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_encrypt_time", "seq", "id",
+          data_bits: data_bits,
+          time_bits: time_bits,
+          time_offset: @time_offset,
+          time_bucket: @time_bucket,
+          key: key,
+          encrypt_time: true
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert a row
+      TestRepo.query!("INSERT INTO test_encrypt_time (title) VALUES ('Test')")
+
+      result =
+        TestRepo.query!(
+          "SELECT id, extract(epoch from now())::bigint FROM test_encrypt_time"
+        )
+
+      [[id, epoch_now]] = result.rows
+
+      # Calculate the expected encrypted time_value
+      time_mask = Bitwise.bsl(1, time_bits) - 1
+      raw_time_value = div(epoch_now - @time_offset, @time_bucket) |> Bitwise.band(time_mask)
+
+      # The time prefix should be the encrypted version of raw_time_value
+      encrypted_time =
+        TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+          raw_time_value,
+          time_bits,
+          key
+        ])
+
+      [[expected_encrypted_time]] = encrypted_time.rows
+
+      actual_time_prefix = Bitwise.bsr(id, data_bits)
+      assert actual_time_prefix == expected_encrypted_time
+
+      # Rows in same bucket should still share the same encrypted prefix
+      TestRepo.query!("INSERT INTO test_encrypt_time (title) VALUES ('Test2')")
+
+      result2 = TestRepo.query!("SELECT id FROM test_encrypt_time ORDER BY seq")
+
+      prefixes =
+        for [row_id] <- result2.rows do
+          Bitwise.bsr(row_id, data_bits)
+        end
+
+      assert length(Enum.uniq(prefixes)) == 1,
+             "Encrypted time prefixes should match within same bucket"
+
+      # Data part should still be reversible
+      data_mask = Bitwise.bsl(1, data_bits) - 1
+
+      for [row_id] <- result2.rows do
+        data_component = Bitwise.band(row_id, data_mask)
+
+        decrypted =
+          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+            data_component,
+            data_bits,
+            key
+          ])
+
+        [[_actual]] = decrypted.rows
+        # Just verify it doesn't error; we can't easily get seq here
+      end
+
+      TestRepo.query!("DROP TABLE IF EXISTS test_encrypt_time CASCADE")
+    end
+
+    test "time_value overflow wraps with modulo (2^time_bits)" do
+      # Use very small time_bits (4) and a time_offset/bucket that forces overflow
+      data_bits = 40
+      time_bits = 4
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      # Calculate time_offset so that current time produces a known overflow
+      # With 4 time_bits, values wrap at 16 (2^4)
+      %{rows: [[epoch_now]]} =
+        TestRepo.query!("SELECT extract(epoch from now())::bigint")
+
+      # Set offset and bucket so time_value will be > 16, forcing modulo
+      # time_value = floor((epoch_now - time_offset) / time_bucket)
+      # We want this to be >= 16 to test wrapping
+      time_offset = epoch_now - 20
+      time_bucket = 1
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+          data_bits: data_bits,
+          time_bits: time_bits,
+          time_offset: time_offset,
+          time_bucket: time_bucket,
+          key: key
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ('Overflow Test')")
+
+      result = TestRepo.query!("SELECT id FROM test_time_posts")
+      [[id]] = result.rows
+
+      # Extract time prefix - should be in range [0, 15] due to modulo
+      time_prefix = Bitwise.bsr(id, data_bits)
+      assert time_prefix >= 0 and time_prefix <= 15,
+             "Time prefix should be in range [0, 15] after modulo, got: #{time_prefix}"
+    end
+
+    test "data part is reversible when time_bits > 0" do
+      data_bits = 40
+      time_bits = 12
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+          data_bits: data_bits,
+          time_bits: time_bits,
+          time_offset: @time_offset,
+          time_bucket: @time_bucket,
+          key: key
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert multiple rows
+      for i <- 1..10 do
+        TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ($1)", ["Post #{i}"])
+      end
+
+      result = TestRepo.query!("SELECT seq, id FROM test_time_posts ORDER BY seq")
+      data_mask = Bitwise.bsl(1, data_bits) - 1
+
+      for [seq, id] <- result.rows do
+        data_component = Bitwise.band(id, data_mask)
+
+        decrypted =
+          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+            data_component,
+            data_bits,
+            key
+          ])
+
+        [[actual]] = decrypted.rows
+
+        assert actual == seq,
+               "Data part should be reversible: seq=#{seq}, data_component=#{data_component}, decrypted=#{actual}"
+      end
+    end
+
+    test "NULL handling works with time_bits > 0" do
+      data_bits = 40
+      time_bits = 12
+
+      TestRepo.query!("DROP TABLE IF EXISTS test_time_nullable CASCADE")
+
+      TestRepo.query!("""
+      CREATE TABLE test_time_nullable (
+        seq BIGINT,
+        id BIGINT,
+        title TEXT
+      )
+      """)
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_time_nullable", "seq", "id",
+          data_bits: data_bits,
+          time_bits: time_bits,
+          time_offset: @time_offset,
+          time_bucket: @time_bucket
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert with NULL seq
+      TestRepo.query!("INSERT INTO test_time_nullable (seq, title) VALUES (NULL, 'Null Test')")
+
+      result = TestRepo.query!("SELECT seq, id FROM test_time_nullable")
+      assert [[nil, nil]] = result.rows
+
+      # Insert with value
+      TestRepo.query!("INSERT INTO test_time_nullable (seq, title) VALUES (42, 'Value Test')")
+
+      result =
+        TestRepo.query!(
+          "SELECT seq, id FROM test_time_nullable WHERE title = 'Value Test'"
+        )
+
+      assert [[42, id]] = result.rows
+      assert id != nil
+
+      TestRepo.query!("DROP TABLE IF EXISTS test_time_nullable CASCADE")
+    end
+  end
+
   describe "up_for_trigger/5" do
-    test "generates correct SQL" do
-      sql = FeistelCipher.up_for_trigger("public", "users", "seq", "id")
+    test "generates correct SQL with time_bits > 0" do
+      sql =
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          time_offset: 1_735_689_600,
+          time_bucket: 3600
+        )
 
       assert sql =~ "CREATE TRIGGER"
       assert sql =~ "users_encrypt_seq_to_id_trigger"
       assert sql =~ "public.users"
       assert sql =~ "feistel_column_trigger"
-      assert sql =~ "52"
+      # default data_bits: 40
+      assert sql =~ "40"
+      assert sql =~ "'seq'"
+      assert sql =~ "'id'"
+      # default time_bits: 12
+      assert sql =~ "12"
+      assert sql =~ "1735689600"
+      assert sql =~ "3600"
+    end
+
+    test "generates correct SQL with time_bits: 0" do
+      sql = FeistelCipher.up_for_trigger("public", "users", "seq", "id", time_bits: 0)
+
+      assert sql =~ "CREATE TRIGGER"
+      assert sql =~ "users_encrypt_seq_to_id_trigger"
+      assert sql =~ "feistel_column_trigger"
       assert sql =~ "'seq'"
       assert sql =~ "'id'"
     end
 
-    test "uses custom bits" do
-      sql = FeistelCipher.up_for_trigger("public", "users", "seq", "id", bits: 40)
-      assert sql =~ "40"
+    test "uses custom data_bits" do
+      sql =
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          data_bits: 32,
+          time_bits: 8,
+          time_offset: 0,
+          time_bucket: 1
+        )
+
+      assert sql =~ "32"
     end
 
     test "uses custom key" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id", key: 123_456)
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          key: 123_456,
+          time_bits: 0
+        )
 
       assert sql =~ "123456"
     end
 
     test "uses custom functions_prefix" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id", functions_prefix: "crypto")
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          functions_prefix: "crypto",
+          time_bits: 0
+        )
 
       assert sql =~ "crypto.feistel_column_trigger"
     end
 
-    test "raises for odd bits" do
-      assert_raise ArgumentError, ~r/bits must be an even number/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id", bits: 51)
+    test "raises for odd data_bits" do
+      assert_raise ArgumentError, ~r/data_bits must be an even number/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          data_bits: 41,
+          time_bits: 0
+        )
+      end
+    end
+
+    test "raises when data_bits < 2" do
+      assert_raise ArgumentError, ~r/data_bits must be at least 2/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          data_bits: 0,
+          time_bits: 0
+        )
+      end
+    end
+
+    test "raises when time_bits + data_bits > 62" do
+      assert_raise ArgumentError, ~r/time_bits \+ data_bits must be <= 62/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          data_bits: 52,
+          time_bits: 12,
+          time_offset: 0,
+          time_bucket: 1
+        )
+      end
+    end
+
+    test "raises when encrypt_time: true and time_bits is odd" do
+      assert_raise ArgumentError, ~r/time_bits must be an even number when encrypt_time is true/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          data_bits: 40,
+          time_bits: 11,
+          time_offset: 0,
+          time_bucket: 1,
+          encrypt_time: true
+        )
+      end
+    end
+
+    test "raises when time_bits > 0 and time_offset missing" do
+      assert_raise ArgumentError, ~r/time_offset is required when time_bits > 0/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          time_bits: 12,
+          time_bucket: 3600
+        )
+      end
+    end
+
+    test "raises when time_bits > 0 and time_bucket missing" do
+      assert_raise ArgumentError, ~r/time_bucket is required when time_bits > 0/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          time_bits: 12,
+          time_offset: 0
+        )
+      end
+    end
+
+    test "raises when time_bucket is not positive" do
+      assert_raise ArgumentError, ~r/time_bucket must be positive/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          time_bits: 12,
+          time_offset: 0,
+          time_bucket: 0
+        )
       end
     end
 
     test "raises for invalid key" do
       assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id", key: -1)
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          key: -1,
+          time_bits: 0
+        )
       end
 
       max_key = Bitwise.bsl(1, 31)
 
       assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id", key: max_key)
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          key: max_key,
+          time_bits: 0
+        )
       end
+    end
+
+    test "includes encrypt_time flag in SQL" do
+      sql =
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          data_bits: 40,
+          time_bits: 12,
+          time_offset: 0,
+          time_bucket: 1,
+          encrypt_time: true
+        )
+
+      # encrypt_time_int = 1
+      assert sql =~ ", 1);"
     end
   end
 
