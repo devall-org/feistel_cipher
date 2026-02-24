@@ -131,6 +131,8 @@ defmodule FeistelCipher do
     CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
       DECLARE
         -- Trigger parameters
+        from_column  text;
+        to_column    text;
         time_bits    int;
         time_offset  bigint;
         time_bucket  bigint;
@@ -138,8 +140,6 @@ defmodule FeistelCipher do
         data_bits    int;
         key          bigint;
         rounds       int;
-        from_column  text;
-        to_column    text;
 
         -- From and to values
         from_value     bigint;
@@ -158,15 +158,15 @@ defmodule FeistelCipher do
 
       BEGIN
         -- Extract trigger parameters
-        data_bits    := TG_ARGV[0]::int;
-        key          := TG_ARGV[1]::bigint;
-        rounds       := TG_ARGV[2]::int;
-        from_column  := TG_ARGV[3];
-        to_column    := TG_ARGV[4];
-        time_bits    := COALESCE(TG_ARGV[5]::int, 0);
-        time_offset  := COALESCE(TG_ARGV[6]::bigint, 0);
-        time_bucket  := COALESCE(TG_ARGV[7]::bigint, 1);
-        encrypt_time := COALESCE(TG_ARGV[8]::int, 0);
+        from_column  := TG_ARGV[0];
+        to_column    := TG_ARGV[1];
+        time_bits    := COALESCE(TG_ARGV[2]::int, 0);
+        time_offset  := COALESCE(TG_ARGV[3]::bigint, 0);
+        time_bucket  := COALESCE(TG_ARGV[4]::bigint, 1);
+        encrypt_time := COALESCE(TG_ARGV[5]::int, 0);
+        data_bits    := TG_ARGV[6]::int;
+        key          := TG_ARGV[7]::bigint;
+        rounds       := TG_ARGV[8]::int;
 
         -- Early return: If from_column is not modified on UPDATE, skip re-encryption.
         -- This allows manual modification of to_column if from_column remains unchanged.
@@ -326,7 +326,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{data_bits}, #{key}, #{rounds}, '#{from}', '#{to}', #{time_bits}, #{time_offset}, #{time_bucket}, #{encrypt_time_int});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger('#{from}', '#{to}', #{time_bits}, #{time_offset}, #{time_bucket}, #{encrypt_time_int}, #{data_bits}, #{key}, #{rounds});
     """
   end
 

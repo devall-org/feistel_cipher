@@ -649,16 +649,16 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "rows in same time_bucket share the same time_bits prefix (encrypt_time: false)" do
-      data_bits = 40
       time_bits = 12
+      data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
-          data_bits: data_bits,
           time_bits: time_bits,
           time_offset: @time_offset,
           time_bucket: @time_bucket,
+          data_bits: data_bits,
           key: key
         )
 
@@ -700,16 +700,16 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "time prefix matches expected time_value (encrypt_time: false)" do
-      data_bits = 40
       time_bits = 12
+      data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
-          data_bits: data_bits,
           time_bits: time_bits,
           time_offset: @time_offset,
           time_bucket: @time_bucket,
+          data_bits: data_bits,
           key: key
         )
 
@@ -729,8 +729,8 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "encrypt_time: true encrypts time prefix with feistel cipher" do
-      data_bits = 40
       time_bits = 12
+      data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       TestRepo.query!("DROP TABLE IF EXISTS test_encrypt_time CASCADE")
@@ -745,12 +745,12 @@ defmodule FeistelCipher.MigrationTest do
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_encrypt_time", "seq", "id",
-          data_bits: data_bits,
           time_bits: time_bits,
           time_offset: @time_offset,
           time_bucket: @time_bucket,
-          key: key,
-          encrypt_time: true
+          encrypt_time: true,
+          data_bits: data_bits,
+          key: key
         )
 
       TestRepo.query!(trigger_sql)
@@ -817,8 +817,8 @@ defmodule FeistelCipher.MigrationTest do
 
     test "time_value overflow wraps with modulo (2^time_bits)" do
       # Use very small time_bits (4) and a time_offset/bucket that forces overflow
-      data_bits = 40
       time_bits = 4
+      data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       # Calculate time_offset so that current time produces a known overflow
@@ -834,10 +834,10 @@ defmodule FeistelCipher.MigrationTest do
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
-          data_bits: data_bits,
           time_bits: time_bits,
           time_offset: time_offset,
           time_bucket: time_bucket,
+          data_bits: data_bits,
           key: key
         )
 
@@ -855,16 +855,16 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "data part is reversible when time_bits > 0" do
-      data_bits = 40
       time_bits = 12
+      data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
-          data_bits: data_bits,
           time_bits: time_bits,
           time_offset: @time_offset,
           time_bucket: @time_bucket,
+          data_bits: data_bits,
           key: key
         )
 
@@ -896,8 +896,8 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "works with future time_offset (negative time difference)" do
-      data_bits = 40
       time_bits = 12
+      data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       # Set time_offset far in the future so (now - offset) is negative
@@ -909,10 +909,10 @@ defmodule FeistelCipher.MigrationTest do
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
-          data_bits: data_bits,
           time_bits: time_bits,
           time_offset: future_offset,
           time_bucket: time_bucket,
+          data_bits: data_bits,
           key: key
         )
 
@@ -956,8 +956,8 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "NULL handling works with time_bits > 0" do
-      data_bits = 40
       time_bits = 12
+      data_bits = 40
 
       TestRepo.query!("DROP TABLE IF EXISTS test_time_nullable CASCADE")
 
@@ -971,10 +971,10 @@ defmodule FeistelCipher.MigrationTest do
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_nullable", "seq", "id",
-          data_bits: data_bits,
           time_bits: time_bits,
           time_offset: @time_offset,
-          time_bucket: @time_bucket
+          time_bucket: @time_bucket,
+          data_bits: data_bits
         )
 
       TestRepo.query!(trigger_sql)
@@ -1031,8 +1031,8 @@ defmodule FeistelCipher.MigrationTest do
     test "uses custom data_bits" do
       sql =
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          data_bits: 32,
-          time_bits: 8
+          time_bits: 8,
+          data_bits: 32
         )
 
       assert sql =~ "32"
@@ -1061,8 +1061,8 @@ defmodule FeistelCipher.MigrationTest do
     test "raises for odd data_bits" do
       assert_raise ArgumentError, ~r/data_bits must be an even number/, fn ->
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          data_bits: 41,
-          time_bits: 0
+          time_bits: 0,
+          data_bits: 41
         )
       end
     end
@@ -1070,8 +1070,8 @@ defmodule FeistelCipher.MigrationTest do
     test "raises when data_bits < 2" do
       assert_raise ArgumentError, ~r/data_bits must be at least 2/, fn ->
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          data_bits: 0,
-          time_bits: 0
+          time_bits: 0,
+          data_bits: 0
         )
       end
     end
@@ -1079,8 +1079,8 @@ defmodule FeistelCipher.MigrationTest do
     test "raises when time_bits + data_bits > 62" do
       assert_raise ArgumentError, ~r/time_bits \+ data_bits must be <= 62/, fn ->
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          data_bits: 52,
-          time_bits: 12
+          time_bits: 12,
+          data_bits: 52
         )
       end
     end
@@ -1088,9 +1088,9 @@ defmodule FeistelCipher.MigrationTest do
     test "raises when encrypt_time: true and time_bits is odd" do
       assert_raise ArgumentError, ~r/time_bits must be an even number when encrypt_time is true/, fn ->
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          data_bits: 40,
           time_bits: 11,
-          encrypt_time: true
+          encrypt_time: true,
+          data_bits: 40
         )
       end
     end
