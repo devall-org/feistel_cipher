@@ -120,18 +120,25 @@ defmodule FeistelCipher.EctoIntegrationTest do
     test "id includes time prefix when time_bits > 0" do
       post = %Post{title: "Hello"} |> TestRepo.insert!()
 
-      # Should have both seq and encrypted id
       assert is_integer(post.seq)
       assert is_integer(post.id)
       assert post.id != post.seq
       assert post.title == "Hello"
 
-      # With default data_bits: 40, time_bits: 12
-      # The id should be larger than what 40 bits alone can produce
-      # (time prefix occupies upper bits)
+      # Default: time_bits: 12, time_offset: 0, time_bucket: 86400, data_bits: 40
+      time_bits = 12
       data_bits = 40
-      time_prefix = Bitwise.bsr(post.id, data_bits)
-      assert time_prefix > 0, "Time prefix should be > 0 for current time"
+      time_offset = 0
+      time_bucket = 86400
+
+      epoch_now = System.os_time(:second)
+      time_mask = Bitwise.bsl(1, time_bits) - 1
+
+      expected_time_prefix =
+        div(epoch_now - time_offset, time_bucket) |> Bitwise.band(time_mask)
+
+      actual_time_prefix = Bitwise.bsr(post.id, data_bits)
+      assert actual_time_prefix == expected_time_prefix
     end
   end
 end
