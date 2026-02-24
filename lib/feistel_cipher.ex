@@ -392,7 +392,8 @@ defmodule FeistelCipher do
   ## ⚠️ Compatibility Warning
 
   If recreating the trigger, you MUST use the exact same encryption parameters:
-  - **bits**: Same bit size (e.g., 52)
+  - **time_bits**, **time_offset**, **time_bucket**, **encrypt_time**: Same time configuration
+  - **data_bits**: Same data bit size (e.g., 40)
   - **key**: Same encryption key
   - **rounds**: Same number of rounds (e.g., 16)
   - **functions_prefix**: Same schema where cipher functions reside (e.g., "public")
@@ -403,12 +404,11 @@ defmodule FeistelCipher do
   - Existing encrypted `id` values become inconsistent with their `seq` values
 
   **Safe scenarios**:
-  - All four parameters match the original values (safe to rename columns/tables)
+  - All parameters match the original values (safe to rename columns/tables)
   - Empty table with no existing encrypted data (safe to use different parameters)
 
   **Finding original parameters**: Check your migration file where the trigger was created.
-  Look for the `up_for_trigger/5` call and its options (`:bits`, `:key`, `:rounds`, `:functions_prefix`).
-  If options were omitted, the defaults were used (bits: 52, rounds: 16, functions_prefix: "public").
+  Look for the `up_for_trigger/5` call and its options.
   For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
 
   ## Examples
@@ -427,10 +427,13 @@ defmodule FeistelCipher do
         old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
         execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
-          bits: 52,                  # Must match original
-          key: old_key,              # Key from OLD column names
-          rounds: 16,                # Must match original
-          functions_prefix: "public" # Must match original
+          time_bits: 12,               # Must match original
+          time_offset: 1_735_689_600,  # Must match original
+          time_bucket: 3600,           # Must match original
+          data_bits: 40,               # Must match original
+          key: old_key,                # Key from OLD column names
+          rounds: 16,                  # Must match original
+          functions_prefix: "public"   # Must match original
         )
       end
 
