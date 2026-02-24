@@ -85,31 +85,60 @@ defmodule FeistelCipher.EctoIntegrationTest do
       assert TestRepo.get!(Post, post3.id).title == "Third Post"
     end
 
-    test "encryption is deterministic" do
+    test "data part encryption is deterministic and reversible" do
       # Insert and get the encrypted id
       post = %Post{title: "Test"} |> TestRepo.insert!()
       seq = post.seq
       encrypted_id = post.id
 
-      # Verify determinism using the cipher function directly
-      %{rows: [[db_encrypted_id]]} =
+      # With time_bits: 12 (default), data_bits: 40 (default)
+      data_bits = 40
+      data_mask = Bitwise.bsl(1, data_bits) - 1
+      data_component = Bitwise.band(encrypted_id, data_mask)
+
+      # Verify data part decrypts back to seq
+      key = FeistelCipher.generate_key("public", "posts", "seq", "id")
+
+      %{rows: [[decrypted_seq]]} =
         TestRepo.query!(
-          "SELECT public.feistel_cipher($1::bigint, 52, $2::bigint, 16) as encrypted_id",
-          [seq, FeistelCipher.generate_key("public", "posts", "seq", "id")]
+          "SELECT public.feistel_cipher($1::bigint, $2, $3::bigint, 16)",
+          [data_component, data_bits, key]
         )
 
-      assert db_encrypted_id == encrypted_id
+      assert decrypted_seq == seq
+
+      # Verify determinism: encrypting seq gives the same data_component
+      %{rows: [[db_data_component]]} =
+        TestRepo.query!(
+          "SELECT public.feistel_cipher($1::bigint, $2, $3::bigint, 16)",
+          [seq, data_bits, key]
+        )
+
+      assert db_data_component == data_component
     end
 
-    test "matches README example behavior" do
-      # This test verifies the exact behavior shown in the README
+    test "id includes time prefix when time_bits > 0" do
       post = %Post{title: "Hello"} |> TestRepo.insert!()
 
-      # Should have both seq and encrypted id
       assert is_integer(post.seq)
       assert is_integer(post.id)
       assert post.id != post.seq
       assert post.title == "Hello"
+
+      # Default: time_bits: 12, time_offset: 0, time_bucket: 86400, data_bits: 40
+      time_bits = 12
+      data_bits = 40
+      time_offset = 0
+      time_bucket = 86400
+
+      epoch_now = System.os_time(:second)
+      time_mask = Bitwise.bsl(1, time_bits) - 1
+
+      expected_time_prefix =
+        div(epoch_now - time_offset, time_bucket) |> Bitwise.band(time_mask)
+
+      actual_time_prefix = Bitwise.bsr(post.id, data_bits)
+      assert actual_time_prefix == expected_time_prefix
     end
   end
 end
