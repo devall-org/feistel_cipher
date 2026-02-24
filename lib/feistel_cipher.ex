@@ -131,15 +131,26 @@ defmodule FeistelCipher do
     CREATE FUNCTION #{functions_prefix}.feistel_column_trigger() RETURNS trigger AS $$
       DECLARE
         -- Trigger parameters
-        bits   int;
-        key    bigint;
-        rounds int;
+        from_column  text;
+        to_column    text;
+        time_bits    int;
+        time_offset  bigint;
+        time_bucket  bigint;
+        encrypt_time boolean;
+        data_bits    int;
+        key          bigint;
+        rounds       int;
 
         -- From and to values
-        from_column text;
-        from_value  bigint;
-        to_column   text;
-        to_value    bigint;
+        from_value     bigint;
+        to_value       bigint;
+
+        -- Time-related values
+        time_value     bigint;
+        time_component bigint;
+
+        -- Data-related values
+        data_component bigint;
 
         -- Temporary values for validation
         decrypted      bigint;
@@ -147,11 +158,15 @@ defmodule FeistelCipher do
 
       BEGIN
         -- Extract trigger parameters
-        bits        := TG_ARGV[0]::int;
-        key         := TG_ARGV[1]::bigint;
-        rounds      := TG_ARGV[2]::int;
-        from_column := TG_ARGV[3];
-        to_column   := TG_ARGV[4];
+        from_column  := TG_ARGV[0];
+        to_column    := TG_ARGV[1];
+        time_bits    := COALESCE(TG_ARGV[2]::int, 0);
+        time_offset  := COALESCE(TG_ARGV[3]::bigint, 0);
+        time_bucket  := COALESCE(TG_ARGV[4]::bigint, 1);
+        encrypt_time := COALESCE(TG_ARGV[5]::boolean, false);
+        data_bits    := TG_ARGV[6]::int;
+        key          := TG_ARGV[7]::bigint;
+        rounds       := TG_ARGV[8]::int;
 
         -- Early return: If from_column is not modified on UPDATE, skip re-encryption.
         -- This allows manual modification of to_column if from_column remains unchanged.
@@ -174,19 +189,31 @@ defmodule FeistelCipher do
         IF from_value IS NULL THEN
           to_value := NULL;
         ELSE
-          -- Encrypt the from_value to get to_value
-          to_value := #{functions_prefix}.feistel_cipher(from_value, bits, key, rounds);
+          -- Calculate time component
+          -- When time_bits = 0: time_value & 0 = 0, so time_component = 0
+          -- and (0 << data_bits) | data_component = data_component (no time prefix)
+          time_value := floor((extract(epoch from now()) - time_offset::double precision) / time_bucket::double precision)::bigint;
+          time_value := time_value & ((1::bigint << time_bits) - 1);
 
-          -- Sanity check: Verify encryption is reversible
-          -- This condition should never occur in practice as Feistel cipher is
-          -- mathematically guaranteed to be reversible. If this fails, it indicates
-          -- a serious bug in the feistel_cipher function implementation.
-          decrypted := #{functions_prefix}.feistel_cipher(to_value, bits, key, rounds);
+          IF encrypt_time AND time_bits > 0 THEN
+            time_component := #{functions_prefix}.feistel_cipher(time_value, time_bits, key, rounds);
+          ELSE
+            time_component := time_value;
+          END IF;
+
+          -- Encrypt the data part using feistel cipher
+          data_component := #{functions_prefix}.feistel_cipher(from_value, data_bits, key, rounds);
+
+          -- Sanity check: Verify data part encryption is reversible
+          decrypted := #{functions_prefix}.feistel_cipher(data_component, data_bits, key, rounds);
 
           IF decrypted IS DISTINCT FROM from_value THEN
-            RAISE EXCEPTION 'feistel_column_trigger: feistel_cipher does not have an inverse (from: %, to: %, decrypted: %, bits: %, key: %, rounds: %)',
-              from_value, to_value, decrypted, bits, key, rounds;
+            RAISE EXCEPTION 'feistel_column_trigger: feistel_cipher does not have an inverse (from: %, data_component: %, decrypted: %, data_bits: %, key: %, rounds: %)',
+              from_value, data_component, decrypted, data_bits, key, rounds;
           END IF;
+
+          -- Combine: [time_bits | data_bits]
+          to_value := (time_component << data_bits) | data_component;
         END IF;
 
         -- Set the to_value to the to_column in the NEW record
@@ -219,30 +246,74 @@ defmodule FeistelCipher do
   @doc """
   Returns SQL to create a trigger that encrypts a `from` column to a `to` column.
 
+  The resulting ID structure is `[time_bits | data_bits]`, where time_bits serve as a
+  prefix to cluster rows created in the same time bucket on nearby PostgreSQL pages,
+  optimizing incremental backup efficiency.
+
   ## Options
 
-  * `:bits` - Cipher bits (default: 52, max: 62, must be even). ⚠️ Cannot be changed after creation.
+  * `:time_bits` - Time prefix bits (default: 12). Set to 0 for no time prefix. ⚠️ Cannot be changed after creation.
+  * `:time_offset` - Base epoch in Unix seconds (default: 0). ⚠️ Cannot be changed after creation.
+  * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). ⚠️ Cannot be changed after creation.
+  * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. ⚠️ Cannot be changed after creation.
+  * `:data_bits` - Data cipher bits (default: 40, must be even). ⚠️ Cannot be changed after creation.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. ⚠️ Cannot be changed after creation.
   * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32). ⚠️ Cannot be changed after creation.
-      - DES uses 16 rounds. 32 provides double the security with acceptable performance.
-      - Performance: 16 rounds ≈ 4.4μs, 32 rounds ≈ 8.7μs per encryption (see README benchmarks).
   * `:functions_prefix` - Schema where cipher functions are located (default: "public"). ⚠️ Cannot be changed after creation.
 
   ## Examples
 
       FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", bits: 40, key: 123456789)
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", rounds: 8)
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id", functions_prefix: "crypto")
+
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
+        time_bits: 8, time_offset: 1735689600, time_bucket: 3600, data_bits: 32)
+
+      FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
+        time_bits: 0)
 
   """
   @spec up_for_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) :: String.t()
   def up_for_trigger(prefix, table, from, to, opts \\ []) when is_list(opts) do
-    # The default is 52 for LiveView and JavaScript interoperability.
-    bits = Keyword.get(opts, :bits, 52)
+    time_bits = Keyword.get(opts, :time_bits, 12)
+    encrypt_time = Keyword.get(opts, :encrypt_time, false)
 
-    unless rem(bits, 2) == 0 do
-      raise ArgumentError, "bits must be an even number, got: #{bits}"
+    unless time_bits >= 0 do
+      raise ArgumentError, "time_bits must be non-negative, got: #{time_bits}"
+    end
+
+    if encrypt_time do
+      unless time_bits >= 2 do
+        raise ArgumentError,
+              "time_bits must be >= 2 when encrypt_time is true, got: #{time_bits}"
+      end
+
+      if rem(time_bits, 2) != 0 do
+        raise ArgumentError,
+              "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
+      end
+    end
+
+    time_offset = Keyword.get(opts, :time_offset, 0)
+
+    time_bucket = Keyword.get(opts, :time_bucket, 86400)
+
+    unless time_bucket > 0 do
+      raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
+    end
+
+    data_bits = Keyword.get(opts, :data_bits, 40)
+
+    unless rem(data_bits, 2) == 0 do
+      raise ArgumentError, "data_bits must be an even number, got: #{data_bits}"
+    end
+
+    unless data_bits >= 2 do
+      raise ArgumentError, "data_bits must be at least 2, got: #{data_bits}"
+    end
+
+    unless time_bits + data_bits <= 62 do
+      raise ArgumentError,
+            "time_bits + data_bits must be <= 62, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
     end
 
     rounds = Keyword.get(opts, :rounds, 16)
@@ -261,7 +332,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger(#{bits}, #{key}, #{rounds}, '#{from}', '#{to}');
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger('#{from}', '#{to}', #{time_bits}, #{time_offset}, #{time_bucket}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
     """
   end
 
@@ -306,7 +377,8 @@ defmodule FeistelCipher do
   ## ⚠️ Compatibility Warning
 
   If recreating the trigger, you MUST use the exact same encryption parameters:
-  - **bits**: Same bit size (e.g., 52)
+  - **time_bits**, **time_offset**, **time_bucket**, **encrypt_time**: Same time configuration
+  - **data_bits**: Same data bit size (e.g., 40)
   - **key**: Same encryption key
   - **rounds**: Same number of rounds (e.g., 16)
   - **functions_prefix**: Same schema where cipher functions reside (e.g., "public")
@@ -317,12 +389,11 @@ defmodule FeistelCipher do
   - Existing encrypted `id` values become inconsistent with their `seq` values
 
   **Safe scenarios**:
-  - All four parameters match the original values (safe to rename columns/tables)
+  - All parameters match the original values (safe to rename columns/tables)
   - Empty table with no existing encrypted data (safe to use different parameters)
 
   **Finding original parameters**: Check your migration file where the trigger was created.
-  Look for the `up_for_trigger/5` call and its options (`:bits`, `:key`, `:rounds`, `:functions_prefix`).
-  If options were omitted, the defaults were used (bits: 52, rounds: 16, functions_prefix: "public").
+  Look for the `up_for_trigger/5` call and its options.
   For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
 
   ## Examples
@@ -341,10 +412,13 @@ defmodule FeistelCipher do
         old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
         execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
-          bits: 52,                  # Must match original
-          key: old_key,              # Key from OLD column names
-          rounds: 16,                # Must match original
-          functions_prefix: "public" # Must match original
+          time_bits: 12,               # Must match original
+          time_offset: 1_735_689_600,  # Must match original
+          time_bucket: 3600,           # Must match original
+          data_bits: 40,               # Must match original
+          key: old_key,                # Key from OLD column names
+          rounds: 16,                  # Must match original
+          functions_prefix: "public"   # Must match original
         )
       end
 
