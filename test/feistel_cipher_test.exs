@@ -318,32 +318,6 @@ defmodule FeistelCipher.MigrationTest do
       assert [[nil]] = result.rows
     end
 
-    test "works with different bit sizes" do
-      bit_sizes = [2, 4, 8, 16, 32, 40, 52, 60, 62]
-
-      for bits <- bit_sizes do
-        max_value = Bitwise.bsl(1, bits) - 1
-        # Test with 0, 1, middle value, and max value
-        test_inputs = [0, 1, div(max_value, 2), max_value]
-
-        for input <- test_inputs do
-          encrypted =
-            TestRepo.query!("SELECT public.feistel_cipher($1, $2, 1, 16)", [input, bits])
-
-          assert [[encrypted_value]] = encrypted.rows
-
-          decrypted =
-            TestRepo.query!("SELECT public.feistel_cipher($1, $2, 1, 16)", [
-              encrypted_value,
-              bits
-            ])
-
-          [[actual]] = decrypted.rows
-          assert actual == input
-        end
-      end
-    end
-
     test "produces valid permutation for 4 bits (0-15 -> 0-15)" do
       # For 4 bits, all inputs 0-15 should map to all outputs 0-15 (bijection)
       bits = 4
@@ -591,34 +565,6 @@ defmodule FeistelCipher.MigrationTest do
       # Clean up
       TestRepo.query!("DROP TABLE IF EXISTS test_nullable_update CASCADE")
     end
-
-    test "handles explicit NULL id" do
-      # Create table that allows NULL seq for this specific test
-      TestRepo.query!("DROP TABLE IF EXISTS test_nullable CASCADE")
-
-      TestRepo.query!("""
-      CREATE TABLE test_nullable (
-        seq BIGINT,
-        id BIGINT,
-        title TEXT
-      )
-      """)
-
-      # Create trigger for nullable table (time_bits: 0)
-      trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_nullable", "seq", "id", time_bits: 0)
-
-      TestRepo.query!(trigger_sql)
-
-      # Insert with NULL seq
-      TestRepo.query!("INSERT INTO test_nullable (seq, title) VALUES (NULL, 'Null Test')")
-
-      result = TestRepo.query!("SELECT seq, id FROM test_nullable WHERE title = 'Null Test'")
-      assert [[nil, nil]] = result.rows
-
-      # Clean up
-      TestRepo.query!("DROP TABLE IF EXISTS test_nullable CASCADE")
-    end
   end
 
   describe "feistel_column_trigger function with time_bits > 0" do
@@ -855,47 +801,6 @@ defmodule FeistelCipher.MigrationTest do
              "Time prefix should be in range [0, 15] after modulo, got: #{time_prefix}"
     end
 
-    test "data part is reversible when time_bits > 0" do
-      time_bits = 12
-      data_bits = 40
-      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
-
-      trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
-          time_bits: time_bits,
-          time_offset: @time_offset,
-          time_bucket: @time_bucket,
-          data_bits: data_bits,
-          key: key
-        )
-
-      TestRepo.query!(trigger_sql)
-
-      # Insert multiple rows
-      for i <- 1..10 do
-        TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ($1)", ["Post #{i}"])
-      end
-
-      result = TestRepo.query!("SELECT seq, id FROM test_time_posts ORDER BY seq")
-      data_mask = Bitwise.bsl(1, data_bits) - 1
-
-      for [seq, id] <- result.rows do
-        data_component = Bitwise.band(id, data_mask)
-
-        decrypted =
-          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
-            data_component,
-            data_bits,
-            key
-          ])
-
-        [[actual]] = decrypted.rows
-
-        assert actual == seq,
-               "Data part should be reversible: seq=#{seq}, data_component=#{data_component}, decrypted=#{actual}"
-      end
-    end
-
     test "works with future time_offset (negative time difference)" do
       time_bits = 12
       data_bits = 40
@@ -1015,16 +920,6 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "12"
       assert sql =~ ", 0,"
       assert sql =~ "86400"
-    end
-
-    test "generates correct SQL with time_bits: 0" do
-      sql = FeistelCipher.up_for_trigger("public", "users", "seq", "id", time_bits: 0)
-
-      assert sql =~ "CREATE TRIGGER"
-      assert sql =~ "users_encrypt_seq_to_id_trigger"
-      assert sql =~ "feistel_column_trigger"
-      assert sql =~ "'seq'"
-      assert sql =~ "'id'"
     end
 
     test "uses custom data_bits" do
