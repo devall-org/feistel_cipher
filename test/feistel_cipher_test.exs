@@ -895,6 +895,66 @@ defmodule FeistelCipher.MigrationTest do
       end
     end
 
+    test "works with future time_offset (negative time difference)" do
+      data_bits = 40
+      time_bits = 12
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      # Set time_offset far in the future so (now - offset) is negative
+      %{rows: [[epoch_now]]} =
+        TestRepo.query!("SELECT extract(epoch from now())::bigint")
+
+      future_offset = epoch_now + 100_000
+      time_bucket = 3600
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+          data_bits: data_bits,
+          time_bits: time_bits,
+          time_offset: future_offset,
+          time_bucket: time_bucket,
+          key: key
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      # Insert multiple rows — should not error
+      for i <- 1..5 do
+        TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ($1)", ["Post #{i}"])
+      end
+
+      result = TestRepo.query!("SELECT seq, id FROM test_time_posts ORDER BY seq")
+      assert length(result.rows) == 5
+
+      time_mask = Bitwise.bsl(1, time_bits) - 1
+      data_mask = Bitwise.bsl(1, data_bits) - 1
+
+      # All time prefixes should be valid (in [0, 2^time_bits - 1]) and identical
+      prefixes =
+        for [_seq, id] <- result.rows do
+          prefix = Bitwise.bsr(id, data_bits)
+          assert prefix >= 0 and prefix <= time_mask
+          prefix
+        end
+
+      assert length(Enum.uniq(prefixes)) == 1
+
+      # Data parts should still be reversible
+      for [seq, id] <- result.rows do
+        data_component = Bitwise.band(id, data_mask)
+
+        decrypted =
+          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+            data_component,
+            data_bits,
+            key
+          ])
+
+        [[actual]] = decrypted.rows
+        assert actual == seq
+      end
+    end
+
     test "NULL handling works with time_bits > 0" do
       data_bits = 40
       time_bits = 12
