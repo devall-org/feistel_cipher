@@ -174,7 +174,7 @@ The `up_for_trigger/5` function accepts these options:
 **Constraints**:
 - `time_bits + data_bits` must be ≤ 63 when `encrypt_time: false`, and ≤ 62 when `encrypt_time: true`
 - `time_bits` must be even when `encrypt_time: true`
-- `data_bits` must be even and ≥ 2
+- `data_bits` must be even
 
 > ⚠️ You cannot reliably compare IDs by `time_bits` alone to determine temporal order. Because `time_value = floor((now - time_offset) / time_bucket) mod 2^time_bits`, the prefix wraps after `time_bucket * 2^time_bits` seconds. This feature is intended to improve PostgreSQL incremental backup locality, not to provide UUIDv7-style global time ordering.
 
