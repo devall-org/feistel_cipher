@@ -251,6 +251,130 @@ defmodule FeistelCipher do
   end
 
   @doc """
+  Creates legacy v0.x PostgreSQL functions (`feistel` and `handle_feistel_encryption`).
+
+  Use this in old migrations that previously called `FeistelCipher.Migration.up/1`
+  so that `mix ecto.migrate` works from scratch with feistel_cipher v1.0.
+
+  Uses `CREATE OR REPLACE` for idempotency.
+
+  ## Options
+
+  * `:functions_prefix` - Schema prefix (default: "public").
+  * `:functions_salt` - Salt value for the cipher (required). This was the `seed` in v0.x.
+  """
+  @spec up_for_legacy_functions(keyword()) :: :ok
+  def up_for_legacy_functions(opts \\ []) when is_list(opts) do
+    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
+    functions_salt = Keyword.fetch!(opts, :functions_salt)
+
+    execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+
+    execute("""
+    CREATE OR REPLACE FUNCTION #{functions_prefix}.feistel(input bigint, bits int, key bigint) returns bigint AS $$
+      DECLARE
+        i          int;
+        left_half  bigint;
+        right_half bigint;
+        temp       bigint;
+        half_bits  int    := bits / 2;
+        half_mask  bigint := (1::bigint << half_bits) - 1;
+        mask       bigint := (1::bigint << bits) - 1;
+        hash_bytes bytea;
+        hash_int   bigint;
+      BEGIN
+        IF bits < 2 OR bits > 62 OR bits % 2 = 1 THEN
+          RAISE EXCEPTION 'feistel bits must be an even number between 2 and 62: %', bits;
+        END IF;
+        IF key < 0 OR key >= (1::bigint << 31) THEN
+          RAISE EXCEPTION 'feistel key must be between 0 and 2^31-1: %', key;
+        END IF;
+        IF input > mask THEN
+          RAISE EXCEPTION 'feistel input is larger than % bits: %', bits, input;
+        END IF;
+        left_half  := (input >> half_bits) & half_mask;
+        right_half := input & half_mask;
+        FOR i IN 1..16 LOOP
+          temp       := right_half;
+          hash_bytes := hmac(int4send(right_half::int4), int4send(key::int4) || int4send(#{functions_salt}::int4), 'sha256');
+          hash_int   := get_byte(hash_bytes, 0)::bigint << 24
+                      | get_byte(hash_bytes, 1)::bigint << 16
+                      | get_byte(hash_bytes, 2)::bigint << 8
+                      | get_byte(hash_bytes, 3)::bigint;
+          right_half := left_half # (hash_int & half_mask);
+          left_half  := temp;
+        END LOOP;
+        temp       := left_half;
+        left_half  := right_half;
+        right_half := temp;
+        RETURN ((left_half << half_bits) | right_half);
+      END;
+    $$ LANGUAGE plpgsql strict immutable;
+    """)
+
+    execute("""
+    CREATE OR REPLACE FUNCTION #{functions_prefix}.handle_feistel_encryption() RETURNS trigger AS $$
+      DECLARE
+        bits int;
+        key bigint;
+        clear_column text;
+        encrypted_column text;
+        old_clear bigint;
+        new_clear bigint;
+        encrypted bigint;
+        decrypted bigint;
+      BEGIN
+        bits             := TG_ARGV[0]::int;
+        key              := TG_ARGV[1]::bigint;
+        clear_column     := TG_ARGV[2];
+        encrypted_column := TG_ARGV[3];
+        IF TG_OP = 'UPDATE' THEN
+          EXECUTE format('SELECT ($1).%I::bigint, ($2).%I::bigint', clear_column, clear_column)
+          INTO old_clear, new_clear
+          USING OLD, NEW;
+          IF NOT (old_clear IS DISTINCT FROM new_clear) THEN
+            RETURN NEW;
+          END IF;
+        ELSE
+          EXECUTE format('SELECT ($1).%I::bigint', clear_column)
+          INTO new_clear
+          USING NEW;
+        END IF;
+        IF new_clear IS NULL THEN
+          encrypted := NULL;
+        ELSE
+          encrypted := #{functions_prefix}.feistel(new_clear, bits, key);
+          decrypted := #{functions_prefix}.feistel(encrypted, bits, key);
+          IF decrypted IS DISTINCT FROM new_clear THEN
+            RAISE EXCEPTION 'feistel function does not have an inverse. clear: %, encrypted: %, decrypted: %, bits: %, key: %',
+              new_clear, encrypted, decrypted, bits, key;
+          END IF;
+        END IF;
+        NEW := jsonb_populate_record(NEW, jsonb_build_object(encrypted_column, to_jsonb(encrypted)));
+        RETURN NEW;
+      END;
+    $$ LANGUAGE plpgsql;
+    """)
+  end
+
+  @doc """
+  Drops legacy v0.x PostgreSQL functions (`feistel` and `handle_feistel_encryption`).
+
+  Uses `IF EXISTS` for idempotency.
+
+  ## Options
+
+  * `:functions_prefix` - Schema prefix (default: "public").
+  """
+  @spec down_for_legacy_functions(keyword()) :: :ok
+  def down_for_legacy_functions(opts \\ []) when is_list(opts) do
+    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
+
+    execute("DROP FUNCTION IF EXISTS #{functions_prefix}.handle_feistel_encryption()")
+    execute("DROP FUNCTION IF EXISTS #{functions_prefix}.feistel(bigint, int, bigint)")
+  end
+
+  @doc """
   Returns SQL to create a trigger that encrypts a `from` column to a `to` column.
 
   The resulting ID structure is `[time_bits | data_bits]`, where time_bits serve as a
