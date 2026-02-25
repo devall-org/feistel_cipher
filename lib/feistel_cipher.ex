@@ -260,7 +260,7 @@ defmodule FeistelCipher do
   ## Options
 
   * `:time_bits` - Time prefix bits (default: 12). Set to 0 for no time prefix. ⚠️ Cannot be changed after creation.
-  * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). ⚠️ Cannot be changed after creation.
+  * `:time_bucket` - Time bucket size in seconds (default: 3600 = 1 hour). ⚠️ Cannot be changed after creation.
   * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. ⚠️ Cannot be changed after creation.
   * `:data_bits` - Data cipher bits (default: 40, must be even). ⚠️ Cannot be changed after creation.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. ⚠️ Cannot be changed after creation.
@@ -312,7 +312,7 @@ defmodule FeistelCipher do
       end
     end
 
-    time_bucket = Keyword.get(opts, :time_bucket, 86400)
+    time_bucket = Keyword.get(opts, :time_bucket, 3600)
 
     unless time_bucket > 0 do
       raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
