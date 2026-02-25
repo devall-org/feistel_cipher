@@ -2,11 +2,11 @@ defmodule Mix.Tasks.FeistelCipher.Install.Docs do
   @moduledoc false
 
   def short_doc do
-    "A Ecto migration for Feistel cipher"
+    "An Ecto migration for Feistel cipher"
   end
 
   def example do
-    "mix igniter.install feistel_cipher"
+    "mix feistel_cipher.install"
   end
 
   def long_doc do
@@ -46,16 +46,11 @@ if Code.ensure_loaded?(Igniter) do
         schema: [repo: :string, functions_prefix: :string, functions_salt: :integer],
         defaults: [
           functions_prefix: "public",
-          functions_salt: generate_random_salt()
+          functions_salt: FeistelCipher.generate_random_salt()
         ],
         aliases: [r: :repo, p: :functions_prefix, s: :functions_salt],
         required: []
       }
-    end
-
-    defp generate_random_salt do
-      <<salt::31, _::1>> = :crypto.strong_rand_bytes(4)
-      salt
     end
 
     @impl Igniter.Mix.Task
