@@ -48,11 +48,11 @@ defmodule FeistelCipher.TestMigrations do
         add(:title, :string)
       end
 
-      execute(FeistelCipher.up_for_trigger("public", "posts", "seq", "id"))
+      execute(FeistelCipher.up_for_legacy_trigger("public", "posts", "seq", "id"))
     end
 
     def down do
-      execute(FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id"))
+      execute(FeistelCipher.force_down_for_legacy_trigger("public", "posts", "seq", "id"))
       drop(table(:posts))
     end
   end

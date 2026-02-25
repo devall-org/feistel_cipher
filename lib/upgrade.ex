@@ -84,7 +84,7 @@ if Code.ensure_loaded?(Igniter) do
 
             For Ash users:
               1. Run `mix ash.codegen --name upgrade_feistel_v1` to generate trigger migrations
-              2. In the generated migration, replace `down_for_trigger` with `force_down_for_trigger`
+              2. In the generated migration, replace `down_for_v1_trigger` with `force_down_for_legacy_trigger`
 
             For plain Ecto users:
               See UPGRADE.md for trigger migration instructions
