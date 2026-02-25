@@ -15,7 +15,7 @@ defmodule Mix.Tasks.FeistelCipher.Upgrade.Docs do
 
     Generates an Ecto migration that upgrades your database from FeistelCipher v0.x to v1.0.
 
-    v1.0 uses new PostgreSQL functions (`feistel_cipher_v1`, `feistel_column_trigger_v1`)
+    v1.0 uses new PostgreSQL functions (`feistel_cipher_v1`, `feistel_trigger_v1`)
     that coexist with the old ones, allowing a smooth upgrade.
 
     ## Example

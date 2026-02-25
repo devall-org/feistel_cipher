@@ -87,7 +87,7 @@ defmodule FeistelCipher.MigrationTest do
         FROM information_schema.routines
         WHERE routine_type = 'FUNCTION'
           AND routine_schema = 'public'
-          AND routine_name IN ('feistel_cipher_v1', 'feistel_column_trigger_v1')
+          AND routine_name IN ('feistel_cipher_v1', 'feistel_trigger_v1')
         """)
 
       assert result.rows == []
@@ -881,7 +881,7 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "users_encrypt_seq_to_id_trigger"
       refute sql =~ "users_encrypt_seq_to_id_v1_trigger"
       assert sql =~ "public.users"
-      assert sql =~ "feistel_column_trigger_v1"
+      assert sql =~ "feistel_trigger_v1"
       # default data_bits: 40
       assert sql =~ "40"
       assert sql =~ "'seq'"
@@ -919,7 +919,7 @@ defmodule FeistelCipher.MigrationTest do
           time_bits: 0
         )
 
-      assert sql =~ "crypto.feistel_column_trigger_v1"
+      assert sql =~ "crypto.feistel_trigger_v1"
     end
 
     test "raises for odd data_bits" do
@@ -1061,7 +1061,7 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "CREATE TRIGGER"
       assert sql =~ "users_encrypt_seq_to_id_v1_trigger"
       assert sql =~ "public.users"
-      assert sql =~ "feistel_column_trigger_v1"
+      assert sql =~ "feistel_trigger_v1"
     end
   end
 
