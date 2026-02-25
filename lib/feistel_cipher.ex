@@ -68,7 +68,7 @@ defmodule FeistelCipher do
     # Since 31 bits (half of 62 bits) are multiplied by a 31-bit parameter,
     # the calculation result is also within the 62-bit range, making it safe for bigint.
     execute("""
-    CREATE FUNCTION #{functions_prefix}.feistel_cipher_v1(value bigint, bits int, key bigint, rounds int) returns bigint AS $$
+    CREATE OR REPLACE FUNCTION #{functions_prefix}.feistel_cipher_v1(value bigint, bits int, key bigint, rounds int) returns bigint AS $$
       DECLARE
         round      int;
         left_half  bigint;
@@ -128,7 +128,7 @@ defmodule FeistelCipher do
     """)
 
     execute("""
-    CREATE FUNCTION #{functions_prefix}.feistel_column_trigger_v1() RETURNS trigger AS $$
+    CREATE OR REPLACE FUNCTION #{functions_prefix}.feistel_column_trigger_v1() RETURNS trigger AS $$
       DECLARE
         -- Trigger parameters
         from_column  text;
