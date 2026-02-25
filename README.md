@@ -153,7 +153,7 @@ With a time prefix, rows from the same time bucket land on nearby pages, so incr
 Use a time prefix when you want write locality and smaller incremental backups on large/high-write tables.
 
 - Example: `events`, `logs`, `orders`, `messages` tables that receive continuous inserts.
-- Typical config: `time_bits: 12`, `time_bucket: 86400` (daily) or `3600` (hourly for tighter locality windows).
+- Typical config: `time_bits: 12`, `time_bucket: 3600` (hourly, default) or `86400` (daily for wider locality windows).
 
 ### When NOT to Use Time Prefix (`time_bits: 0`)
 
@@ -170,8 +170,8 @@ The `up_for_trigger/5` function accepts these options:
 
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
 - `time_bits`: Time prefix bits (default: 12). Set to 0 for no time prefix
-- `time_bucket`: Time bucket size in seconds (default: `86400`)
-  - Example: `3600` for 1 hour, `86400` for 1 day
+- `time_bucket`: Time bucket size in seconds (default: `3600`)
+  - Example: `3600` for 1 hour (default), `86400` for 1 day
   - Rows inserted within the same bucket share the same time prefix
 - `encrypt_time`: Whether to encrypt the time prefix with Feistel cipher (default: `false`)
   - `false`: Time prefix may reflect recent bucket progression, but it is **not** a globally orderable timestamp
