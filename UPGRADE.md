@@ -1,8 +1,8 @@
 # Upgrading FeistelCipher
 
-## From v0.15.0 to v1.0.0
+## From v0.14.0 or v0.15.0 to v1.0.0
 
-v0.15.0 → v1.0.0 is **fully backward compatible** when using `time_bits: 0`. The cipher algorithm is identical; only the API and PostgreSQL function names changed.
+v0.14.0/v0.15.0 → v1.0.0 is **fully backward compatible** when using `time_bits: 0`. The cipher algorithm (HMAC-SHA256) is identical; only the API and PostgreSQL function names changed.
 
 ### What changed
 
@@ -51,9 +51,9 @@ end
 
 ---
 
-## From v0.14.0 or earlier to v1.0.0
+## From v0.13.x or earlier to v1.0.0
 
-v0.14.0 → v0.15.0 introduced a **breaking change to the cipher algorithm**: the round function was hardened from a simple hash to HMAC-SHA256. This means **encryption results are different** — the same input produces different output.
+v0.14.0 introduced a **breaking change to the cipher algorithm**: the round function was hardened from a simple hash to HMAC-SHA256. This means **encryption results are different** — the same input produces different output.
 
 ### Impact
 
@@ -69,6 +69,6 @@ v0.14.0 → v0.15.0 introduced a **breaking change to the cipher algorithm**: th
 
 ### Steps
 
-Follow the same steps as "From v0.15.0 to v1.0.0" above. The upgrade task works the same way.
+Follow the same steps as "From v0.14.0 or v0.15.0 to v1.0.0" above. The upgrade task works the same way.
 
 If you need to maintain decryption capability for old rows, keep the old `feistel_cipher` function in the database (skip Step 3) and use it for decrypting pre-upgrade data.
