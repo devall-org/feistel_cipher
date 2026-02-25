@@ -98,7 +98,7 @@ if Code.ensure_loaded?(Igniter) do
             #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_encrypt(bigint, int, bigint, int)"
             #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_column_trigger()"
             #
-            #   # v0.4.x or earlier
+            #   # v0.13.x or earlier
             #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel(bigint, int, bigint)"
             #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.handle_feistel_encryption()"
           end
