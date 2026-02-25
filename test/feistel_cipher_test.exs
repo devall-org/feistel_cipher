@@ -801,6 +801,39 @@ defmodule FeistelCipher.MigrationTest do
              "Time prefix should be in range [0, 15] after modulo, got: #{time_prefix}"
     end
 
+    test "with time_bucket 1 second, second row has larger time_bits prefix within 60" do
+      time_bits = 12
+      data_bits = 40
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      %{rows: [[epoch_now]]} =
+        TestRepo.query!("SELECT extract(epoch from now())::bigint")
+
+      trigger_sql =
+        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+          time_bits: time_bits,
+          time_offset: epoch_now - 10,
+          time_bucket: 1,
+          data_bits: data_bits,
+          key: key
+        )
+
+      TestRepo.query!(trigger_sql)
+
+      TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ('First')")
+      TestRepo.query!("SELECT pg_sleep(1.1)")
+      TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ('Second')")
+
+      result = TestRepo.query!("SELECT id FROM test_time_posts ORDER BY seq")
+      assert [[first_id], [second_id]] = result.rows
+
+      first_time_bits = Bitwise.bsr(first_id, data_bits)
+      second_time_bits = Bitwise.bsr(second_id, data_bits)
+
+      assert second_time_bits > first_time_bits
+      assert second_time_bits - first_time_bits < 60
+    end
+
     test "works with future time_offset (negative time difference)" do
       time_bits = 12
       data_bits = 40
