@@ -37,9 +37,20 @@ def up do
   execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
     time_bits: 0, data_bits: 52, functions_prefix: "public")
 
-  # Step 3 (optional): Drop old functions after all triggers are upgraded
+  # Step 3 (optional): Drop old functions after all triggers are upgraded.
+  # Which functions exist depends on which version you're upgrading from:
+  #
+  # v0.15.0:
   execute "DROP FUNCTION IF EXISTS public.feistel_cipher(bigint, int, bigint, int)"
   execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
+  #
+  # v0.14.0:
+  # execute "DROP FUNCTION IF EXISTS public.feistel_encrypt(bigint, int, bigint, int)"
+  # execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
+  #
+  # v0.4.x or earlier:
+  # execute "DROP FUNCTION IF EXISTS public.feistel(bigint, int, bigint)"
+  # execute "DROP FUNCTION IF EXISTS public.handle_feistel_encryption()"
 end
 
 def down do

@@ -87,9 +87,20 @@ if Code.ensure_loaded?(Igniter) do
             #     time_bits: 0, data_bits: 52, functions_prefix: "#{functions_prefix}")
 
             # === Step 3 (optional): Drop old v0.x functions ===
-            # After all triggers are upgraded, you can remove the old functions:
+            # After all triggers are upgraded, you can remove the old functions.
+            # Which functions exist depends on which version you're upgrading from:
+            #
+            #   # v0.15.0
             #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_cipher(bigint, int, bigint, int)"
             #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_column_trigger()"
+            #
+            #   # v0.14.0
+            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_encrypt(bigint, int, bigint, int)"
+            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_column_trigger()"
+            #
+            #   # v0.4.x or earlier
+            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel(bigint, int, bigint)"
+            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.handle_feistel_encryption()"
           end
 
           def down do
