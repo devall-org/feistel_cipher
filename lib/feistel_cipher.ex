@@ -160,13 +160,21 @@ defmodule FeistelCipher do
         -- Extract trigger parameters
         from_column  := TG_ARGV[0];
         to_column    := TG_ARGV[1];
-        time_bits    := COALESCE(TG_ARGV[2]::int, 0);
-        time_offset  := COALESCE(TG_ARGV[3]::bigint, 0);
-        time_bucket  := COALESCE(TG_ARGV[4]::bigint, 86400);
-        encrypt_time := COALESCE(TG_ARGV[5]::boolean, false);
+        time_bits    := TG_ARGV[2]::int;
+        time_offset  := TG_ARGV[3]::bigint;
+        time_bucket  := TG_ARGV[4]::bigint;
+        encrypt_time := TG_ARGV[5]::boolean;
         data_bits    := TG_ARGV[6]::int;
         key          := TG_ARGV[7]::bigint;
         rounds       := TG_ARGV[8]::int;
+
+        -- Fail fast on malformed trigger arguments instead of silently defaulting.
+        IF time_bits IS NULL OR time_offset IS NULL OR time_bucket IS NULL OR
+           encrypt_time IS NULL OR data_bits IS NULL OR key IS NULL OR rounds IS NULL THEN
+          RAISE EXCEPTION
+            'feistel_column_trigger misconfigured: expected 9 non-null trigger arguments, got TG_ARGV=%',
+            TG_ARGV;
+        END IF;
 
         -- Early return: If from_column is not modified on UPDATE, skip re-encryption.
         -- This allows manual modification of to_column if from_column remains unchanged.
