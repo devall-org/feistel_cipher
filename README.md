@@ -66,44 +66,9 @@ Both methods support the following options:
 > **Fun Fact**: Notice the timestamp `19730501000000` in the migration file generated during installation? That's May 1, 1973 - the day [Horst Feistel published his groundbreaking paper](https://en.wikipedia.org/wiki/Feistel_cipher#History) at IBM, introducing the cipher structure that powers this library. We thought it deserved a permanent timestamp in your database history! 🎂
 
 
-## Upgrading from v0.x to v1.0
+## Upgrading from v0.x
 
-v1.0 introduces time-based prefixes and renames `bits` to `data_bits`. The new PostgreSQL functions use a `_v1` suffix (`feistel_cipher_v1`, `feistel_column_trigger_v1`), so they coexist with the old ones during migration.
-
-### Quick Guide
-
-1. **Update dependency** to `~> 1.0`
-
-2. **Run the upgrade task** to generate a database migration:
-
-```bash
-mix feistel_cipher.upgrade
-```
-
-3. **Edit the generated migration** — fill in your `functions_salt` and trigger details:
-
-```elixir
-def up do
-  # Step 1: Install v1 functions (coexists with old ones)
-  FeistelCipher.up_for_functions(functions_prefix: "public", functions_salt: YOUR_SALT)
-
-  # Step 2: For each trigger, drop old and recreate with v1
-  #   bits: N  →  time_bits: 0, data_bits: N
-  #   (old default for bits was 52)
-  execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
-  execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
-    time_bits: 0, data_bits: 52, functions_prefix: "public")
-
-  # Step 3 (optional): Drop old functions
-  execute "DROP FUNCTION IF EXISTS public.feistel_cipher(bigint, int, bigint, int)"
-  execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
-end
-```
-
-**Key changes**:
-- `bits: N` → `time_bits: 0, data_bits: N` (use `time_bits: 0` for backward compatibility)
-- `time_offset` option removed
-- Find your `functions_salt` in the migration with timestamp `19730501000000`
+See [UPGRADE.md](UPGRADE.md) for the migration guide.
 
 ## Usage Example
 
