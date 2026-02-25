@@ -210,8 +210,8 @@ defmodule FeistelCipher.MigrationTest do
     test "encrypts and decrypts correctly (reversibility test)" do
       max_key = Bitwise.bsl(1, 31) - 1
       mid_key = div(max_key, 2)
-      # Test all valid even bit sizes from 2 to 62
-      bit_sizes = Enum.to_list(2..62//2)
+      # Test all valid even bit sizes from 0 to 62
+      bit_sizes = Enum.to_list(0..62//2)
 
       # Test with various round counts (odd and even, boundary cases)
       round_counts = [1, 2, 3, 4, 7, 8, 15, 16, 31, 32]
@@ -219,8 +219,11 @@ defmodule FeistelCipher.MigrationTest do
       # Test all combinations of extreme and middle values for each bit size
       for bits <- bit_sizes, rounds <- round_counts do
         max_input = Bitwise.bsl(1, bits) - 1
-        mid_input = div(max_input, 2)
-        inputs = [1, mid_input, max_input]
+        min_input = 0
+        mid_input = Bitwise.bsr(max_input, 1)
+
+        inputs = [min_input, mid_input, max_input]
+
         keys = [1, mid_key, max_key]
 
         for input <- inputs, key <- keys do
@@ -257,9 +260,9 @@ defmodule FeistelCipher.MigrationTest do
         TestRepo.query!("SELECT public.feistel_cipher(1, 61, 1, 16)")
       end
 
-      # Bits too small
+      # Bits invalid (negative)
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 1, 1, 16)")
+        TestRepo.query!("SELECT public.feistel_cipher(1, -2, 1, 16)")
       end
 
       # Bits too large (> 62)
@@ -310,6 +313,15 @@ defmodule FeistelCipher.MigrationTest do
 
       assert_raise Postgrex.Error, fn ->
         TestRepo.query!("SELECT public.feistel_cipher($1, 62, 1, 16)", [too_large])
+      end
+    end
+
+    test "handles zero bits as 0 -> 0 identity" do
+      result = TestRepo.query!("SELECT public.feistel_cipher(0, 0, 1, 16)")
+      assert [[0]] = result.rows
+
+      assert_raise Postgrex.Error, fn ->
+        TestRepo.query!("SELECT public.feistel_cipher(1, 0, 1, 16)")
       end
     end
 
@@ -961,11 +973,21 @@ defmodule FeistelCipher.MigrationTest do
       end
     end
 
-    test "raises when data_bits < 2" do
-      assert_raise ArgumentError, ~r/data_bits must be at least 2/, fn ->
+    test "allows data_bits = 0" do
+      sql =
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
           time_bits: 0,
           data_bits: 0
+        )
+
+      assert sql =~ ", false, 0,"
+    end
+
+    test "raises when data_bits is negative" do
+      assert_raise ArgumentError, ~r/data_bits must be non-negative/, fn ->
+        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+          time_bits: 0,
+          data_bits: -2
         )
       end
     end

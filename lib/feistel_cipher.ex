@@ -82,8 +82,8 @@ defmodule FeistelCipher do
         hash_int   bigint;
 
       BEGIN
-        IF bits < 2 OR bits > 62 OR bits % 2 = 1 THEN
-          RAISE EXCEPTION 'feistel_cipher: bits must be an even number between 2 and 62: %', bits;
+        IF bits < 0 OR bits > 62 OR bits % 2 = 1 THEN
+          RAISE EXCEPTION 'feistel_cipher: bits must be an even number between 0 and 62: %', bits;
         END IF;
 
         IF key < 0 OR key >= (1::bigint << 31) THEN
@@ -307,8 +307,8 @@ defmodule FeistelCipher do
       raise ArgumentError, "data_bits must be an even number, got: #{data_bits}"
     end
 
-    unless data_bits >= 2 do
-      raise ArgumentError, "data_bits must be at least 2, got: #{data_bits}"
+    unless data_bits >= 0 do
+      raise ArgumentError, "data_bits must be non-negative, got: #{data_bits}"
     end
 
     unless time_bits + data_bits <= 62 do

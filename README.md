@@ -174,7 +174,7 @@ The `up_for_trigger/5` function accepts these options:
 **Constraints**:
 - `time_bits + data_bits` must be ≤ 62
 - `time_bits` must be even when `encrypt_time: true`
-- `data_bits` must be even and ≥ 2
+- `data_bits` must be even
 
 Example with custom options:
 ```elixir
