@@ -158,7 +158,7 @@ The `up_for_trigger/5` function accepts these options:
   - Example: `3600` for 1 hour, `86400` for 1 day
   - Rows inserted within the same bucket share the same time prefix
 - `encrypt_time`: Whether to encrypt the time prefix with Feistel cipher (default: `false`)
-  - `false`: Time prefix preserves temporal ordering
+  - `false`: Time prefix may reflect recent bucket progression, but it is **not** a globally orderable timestamp
   - `true`: Time prefix is encrypted (hides time patterns, but same-bucket rows still share prefix). `time_bits` must be even
 - `data_bits`: Data cipher bits (default: 40, must be even)
   - **Choose different sizes per column**: Unlike UUIDs (fixed 16 bytes), tailor each column's ID length
@@ -175,6 +175,8 @@ The `up_for_trigger/5` function accepts these options:
 - `time_bits + data_bits` must be ≤ 62
 - `time_bits` must be even when `encrypt_time: true`
 - `data_bits` must be even and ≥ 2
+
+> ⚠️ You cannot reliably compare IDs by `time_bits` alone to determine temporal order. Because `time_value = floor((now - time_offset) / time_bucket) mod 2^time_bits`, the prefix wraps after `time_bucket * 2^time_bits` seconds. This feature is intended to improve PostgreSQL incremental backup locality, not to provide UUIDv7-style global time ordering.
 
 Example with custom options:
 ```elixir
