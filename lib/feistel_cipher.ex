@@ -128,7 +128,7 @@ defmodule FeistelCipher do
     """)
 
     execute("""
-    CREATE OR REPLACE FUNCTION #{functions_prefix}.feistel_column_trigger_v1() RETURNS trigger AS $$
+    CREATE OR REPLACE FUNCTION #{functions_prefix}.feistel_trigger_v1() RETURNS trigger AS $$
       DECLARE
         -- Trigger parameters
         from_column  text;
@@ -171,7 +171,7 @@ defmodule FeistelCipher do
            time_bits IS NULL OR time_bucket IS NULL OR
            encrypt_time IS NULL OR data_bits IS NULL OR key IS NULL OR rounds IS NULL THEN
           RAISE EXCEPTION
-            'feistel_column_trigger_v1 misconfigured: expected 8 non-null trigger arguments, got TG_ARGV=%',
+            'feistel_trigger_v1 misconfigured: expected 8 non-null trigger arguments, got TG_ARGV=%',
             TG_ARGV;
         END IF;
 
@@ -215,7 +215,7 @@ defmodule FeistelCipher do
           decrypted := #{functions_prefix}.feistel_cipher_v1(data_component, data_bits, key, rounds);
 
           IF decrypted IS DISTINCT FROM from_value THEN
-            RAISE EXCEPTION 'feistel_column_trigger_v1: feistel_cipher_v1 does not have an inverse (from: %, data_component: %, decrypted: %, data_bits: %, key: %, rounds: %)',
+            RAISE EXCEPTION 'feistel_trigger_v1: feistel_cipher_v1 does not have an inverse (from: %, data_component: %, decrypted: %, data_bits: %, key: %, rounds: %)',
               from_value, data_component, decrypted, data_bits, key, rounds;
           END IF;
 
@@ -247,7 +247,7 @@ defmodule FeistelCipher do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
     execute("DROP FUNCTION #{functions_prefix}.feistel_cipher_v1(bigint, int, bigint, int)")
-    execute("DROP FUNCTION #{functions_prefix}.feistel_column_trigger_v1()")
+    execute("DROP FUNCTION #{functions_prefix}.feistel_trigger_v1()")
   end
 
   @doc """
@@ -476,7 +476,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_column_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
     """
   end
 
