@@ -158,8 +158,8 @@ defmodule FeistelCipher do
 
       BEGIN
         -- Extract trigger parameters
-        from_column  := TG_ARGV[0];
-        to_column    := TG_ARGV[1];
+        from_column  := TG_ARGV[0]::text;
+        to_column    := TG_ARGV[1]::text;
         time_bits    := TG_ARGV[2]::int;
         time_offset  := TG_ARGV[3]::bigint;
         time_bucket  := TG_ARGV[4]::bigint;
@@ -169,7 +169,8 @@ defmodule FeistelCipher do
         rounds       := TG_ARGV[8]::int;
 
         -- Fail fast on malformed trigger arguments instead of silently defaulting.
-        IF time_bits IS NULL OR time_offset IS NULL OR time_bucket IS NULL OR
+        IF from_column IS NULL OR to_column IS NULL OR
+           time_bits IS NULL OR time_offset IS NULL OR time_bucket IS NULL OR
            encrypt_time IS NULL OR data_bits IS NULL OR key IS NULL OR rounds IS NULL THEN
           RAISE EXCEPTION
             'feistel_column_trigger misconfigured: expected 9 non-null trigger arguments, got TG_ARGV=%',
