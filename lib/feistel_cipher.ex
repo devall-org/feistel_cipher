@@ -311,9 +311,11 @@ defmodule FeistelCipher do
       raise ArgumentError, "data_bits must be at least 2, got: #{data_bits}"
     end
 
-    unless time_bits + data_bits <= 62 do
+    max_total_bits = if encrypt_time, do: 62, else: 63
+
+    unless time_bits + data_bits <= max_total_bits do
       raise ArgumentError,
-            "time_bits + data_bits must be <= 62, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
+            "time_bits + data_bits must be <= #{max_total_bits} when encrypt_time is #{encrypt_time}, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
     end
 
     rounds = Keyword.get(opts, :rounds, 16)

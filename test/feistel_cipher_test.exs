@@ -970,13 +970,40 @@ defmodule FeistelCipher.MigrationTest do
       end
     end
 
-    test "raises when time_bits + data_bits > 62" do
-      assert_raise ArgumentError, ~r/time_bits \+ data_bits must be <= 62/, fn ->
+    test "allows time_bits + data_bits = 63 when encrypt_time is false" do
+      sql =
         FeistelCipher.up_for_trigger("public", "users", "seq", "id",
-          time_bits: 12,
-          data_bits: 52
+          time_bits: 13,
+          data_bits: 50,
+          encrypt_time: false
         )
-      end
+
+      assert sql =~ ", 13,"
+      assert sql =~ ", false, 50,"
+    end
+
+    test "raises when time_bits + data_bits > 63 and encrypt_time is false" do
+      assert_raise ArgumentError,
+                   ~r/time_bits \+ data_bits must be <= 63 when encrypt_time is false/,
+                   fn ->
+                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                       time_bits: 14,
+                       data_bits: 50,
+                       encrypt_time: false
+                     )
+                   end
+    end
+
+    test "raises when time_bits + data_bits > 62 and encrypt_time is true" do
+      assert_raise ArgumentError,
+                   ~r/time_bits \+ data_bits must be <= 62 when encrypt_time is true/,
+                   fn ->
+                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                       time_bits: 12,
+                       data_bits: 52,
+                       encrypt_time: true
+                     )
+                   end
     end
 
     test "raises when encrypt_time: true and time_bits < 2" do
