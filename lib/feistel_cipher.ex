@@ -162,7 +162,7 @@ defmodule FeistelCipher do
         to_column    := TG_ARGV[1];
         time_bits    := COALESCE(TG_ARGV[2]::int, 0);
         time_offset  := COALESCE(TG_ARGV[3]::bigint, 0);
-        time_bucket  := COALESCE(TG_ARGV[4]::bigint, 1);
+        time_bucket  := COALESCE(TG_ARGV[4]::bigint, 86400);
         encrypt_time := COALESCE(TG_ARGV[5]::boolean, false);
         data_bits    := TG_ARGV[6]::int;
         key          := TG_ARGV[7]::bigint;
