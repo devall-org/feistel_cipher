@@ -10,7 +10,7 @@ v0.14.0/v0.15.0 → v1.0.0 is **fully backward compatible** when using `time_bit
 - **`bits` option renamed to `data_bits`** (default changed from 52 to 40)
 - **New `time_bits` option** (default: 12) for time-based prefix. Use `time_bits: 0` to keep the old behavior.
 - **`time_offset` option removed**
-- **New options**: `time_bucket` (default: 86400), `encrypt_time` (default: false)
+- **New options**: `time_bucket` (default: 3600), `encrypt_time` (default: false)
 
 ### Steps
 

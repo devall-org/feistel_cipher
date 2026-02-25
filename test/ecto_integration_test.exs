@@ -125,10 +125,10 @@ defmodule FeistelCipher.EctoIntegrationTest do
       assert post.id != post.seq
       assert post.title == "Hello"
 
-      # Default: time_bits: 12, time_bucket: 86400, data_bits: 40
+      # Default: time_bits: 12, time_bucket: 3600, data_bits: 40
       time_bits = 12
       data_bits = 40
-      time_bucket = 86400
+      time_bucket = 3600
 
       epoch_now = System.os_time(:second)
       time_mask = Bitwise.bsl(1, time_bits) - 1
