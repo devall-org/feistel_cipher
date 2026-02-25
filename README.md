@@ -172,7 +172,7 @@ The `up_for_trigger/5` function accepts these options:
 - `functions_prefix`: Schema where cipher functions reside (default: `public`)
 
 **Constraints**:
-- `time_bits + data_bits` must be ≤ 62
+- `time_bits + data_bits` must be ≤ 63 when `encrypt_time: false`, and ≤ 62 when `encrypt_time: true`
 - `time_bits` must be even when `encrypt_time: true`
 - `data_bits` must be even and ≥ 2
 
