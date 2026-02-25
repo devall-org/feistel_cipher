@@ -61,19 +61,19 @@ defmodule FeistelCipher.MigrationTest do
         FROM information_schema.routines
         WHERE routine_type = 'FUNCTION'
           AND routine_schema = 'public'
-          AND routine_name = 'feistel_cipher'
+          AND routine_name = 'feistel_cipher_v1'
         """)
 
       assert length(result.rows) == 1
 
       # Test the function works
-      encrypted = TestRepo.query!("SELECT public.feistel_cipher(123, 52, 456, 16)")
+      encrypted = TestRepo.query!("SELECT public.feistel_cipher_v1(123, 52, 456, 16)")
       assert [[encrypted_value]] = encrypted.rows
       assert is_integer(encrypted_value)
 
       # Test that encryption is reversible
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 52, 456, 16)", [encrypted_value])
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 52, 456, 16)", [encrypted_value])
 
       assert [[123]] = decrypted.rows
 
@@ -87,7 +87,7 @@ defmodule FeistelCipher.MigrationTest do
         FROM information_schema.routines
         WHERE routine_type = 'FUNCTION'
           AND routine_schema = 'public'
-          AND routine_name IN ('feistel_cipher', 'feistel_column_trigger')
+          AND routine_name IN ('feistel_cipher_v1', 'feistel_column_trigger_v1')
         """)
 
       assert result.rows == []
@@ -104,13 +104,13 @@ defmodule FeistelCipher.MigrationTest do
         FROM information_schema.routines
         WHERE routine_type = 'FUNCTION'
           AND routine_schema = 'crypto'
-          AND routine_name = 'feistel_cipher'
+          AND routine_name = 'feistel_cipher_v1'
         """)
 
       assert length(result.rows) == 1
 
       # Test the function works
-      encrypted = TestRepo.query!("SELECT crypto.feistel_cipher(789, 52, 101112, 16)")
+      encrypted = TestRepo.query!("SELECT crypto.feistel_cipher_v1(789, 52, 101112, 16)")
       assert [[encrypted_value]] = encrypted.rows
       assert is_integer(encrypted_value)
 
@@ -126,7 +126,7 @@ defmodule FeistelCipher.MigrationTest do
       create_functions(functions_salt: custom_salt)
 
       # The salt is embedded in the function, so we just test it works
-      encrypted = TestRepo.query!("SELECT public.feistel_cipher(123, 52, 456, 16)")
+      encrypted = TestRepo.query!("SELECT public.feistel_cipher_v1(123, 52, 456, 16)")
       assert [[encrypted_value]] = encrypted.rows
       assert is_integer(encrypted_value)
 
@@ -185,7 +185,7 @@ defmodule FeistelCipher.MigrationTest do
 
       for {input, bits, key, rounds, expected} <- golden_cases do
         result =
-          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, $4)", [
+          TestRepo.query!("SELECT public.feistel_cipher_v1($1, $2, $3, $4)", [
             input,
             bits,
             key,
@@ -228,7 +228,7 @@ defmodule FeistelCipher.MigrationTest do
 
         for input <- inputs, key <- keys do
           encrypted =
-            TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, $4)", [
+            TestRepo.query!("SELECT public.feistel_cipher_v1($1, $2, $3, $4)", [
               input,
               bits,
               key,
@@ -238,7 +238,7 @@ defmodule FeistelCipher.MigrationTest do
           assert [[encrypted_value]] = encrypted.rows
 
           decrypted =
-            TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, $4)", [
+            TestRepo.query!("SELECT public.feistel_cipher_v1($1, $2, $3, $4)", [
               encrypted_value,
               bits,
               key,
@@ -257,76 +257,76 @@ defmodule FeistelCipher.MigrationTest do
     test "raises error for invalid bits" do
       # Odd bits
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 61, 1, 16)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 61, 1, 16)")
       end
 
       # Bits invalid (negative)
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, -2, 1, 16)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, -2, 1, 16)")
       end
 
       # Bits too large (> 62)
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 64, 1, 16)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 64, 1, 16)")
       end
     end
 
     test "raises error for invalid key" do
       # Negative key
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 62, -1, 16)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 62, -1, 16)")
       end
 
       # Key too large (>= 2^31)
       invalid_key = Bitwise.bsl(1, 31)
 
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 62, $1, 16)", [invalid_key])
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 62, $1, 16)", [invalid_key])
       end
     end
 
     test "raises error for invalid rounds" do
       # Rounds too small (< 1)
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 62, 1, 0)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 62, 1, 0)")
       end
 
       # Rounds too large (> 32)
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 62, 1, 33)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 62, 1, 33)")
       end
 
       # Negative rounds
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 62, 1, -1)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 62, 1, -1)")
       end
     end
 
     test "raises error for input larger than bits" do
       # For 8 bits, max value is 2^8 - 1 = 255
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(256, 8, 1, 16)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(256, 8, 1, 16)")
       end
 
       # For 62 bits, test with value larger than 2^62 - 1
       too_large = Bitwise.bsl(1, 62)
 
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher($1, 62, 1, 16)", [too_large])
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 62, 1, 16)", [too_large])
       end
     end
 
     test "handles zero bits as 0 -> 0 identity" do
-      result = TestRepo.query!("SELECT public.feistel_cipher(0, 0, 1, 16)")
+      result = TestRepo.query!("SELECT public.feistel_cipher_v1(0, 0, 1, 16)")
       assert [[0]] = result.rows
 
       assert_raise Postgrex.Error, fn ->
-        TestRepo.query!("SELECT public.feistel_cipher(1, 0, 1, 16)")
+        TestRepo.query!("SELECT public.feistel_cipher_v1(1, 0, 1, 16)")
       end
     end
 
     test "handles NULL input" do
-      result = TestRepo.query!("SELECT public.feistel_cipher(NULL::bigint, 62, 1, 16)")
+      result = TestRepo.query!("SELECT public.feistel_cipher_v1(NULL::bigint, 62, 1, 16)")
       assert [[nil]] = result.rows
     end
 
@@ -340,7 +340,7 @@ defmodule FeistelCipher.MigrationTest do
       encrypted_values =
         for input <- 0..15 do
           result =
-            TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, $4)", [
+            TestRepo.query!("SELECT public.feistel_cipher_v1($1, $2, $3, $4)", [
               input,
               bits,
               key,
@@ -412,7 +412,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [id, key])
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [id, key])
 
       [[actual]] = decrypted.rows
       assert actual == seq
@@ -431,7 +431,7 @@ defmodule FeistelCipher.MigrationTest do
 
       for [seq, id] <- result.rows do
         decrypted =
-          TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [id, key])
+          TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [id, key])
 
         [[actual]] = decrypted.rows
         assert actual == seq
@@ -458,7 +458,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [
           original_id,
           key
         ])
@@ -489,7 +489,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [
           new_id,
           key
         ])
@@ -569,7 +569,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Verify id is encrypted version of seq (data_bits default: 40)
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher($1, 40, $2, 16)", [id, key])
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [id, key])
 
       [[decrypted_seq]] = decrypted.rows
       assert decrypted_seq == 42
@@ -580,8 +580,6 @@ defmodule FeistelCipher.MigrationTest do
   end
 
   describe "feistel_column_trigger function with time_bits > 0" do
-    # 2025-01-01 00:00:00 UTC
-    @time_offset 1_735_689_600
     # 1 hour bucket
     @time_bucket 3600
 
@@ -614,7 +612,6 @@ defmodule FeistelCipher.MigrationTest do
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
-          time_offset: @time_offset,
           time_bucket: @time_bucket,
           data_bits: data_bits,
           key: key
@@ -646,7 +643,7 @@ defmodule FeistelCipher.MigrationTest do
         data_component = Bitwise.band(id, data_mask)
 
         decrypted =
-          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+          TestRepo.query!("SELECT public.feistel_cipher_v1($1, $2, $3, 16)", [
             data_component,
             data_bits,
             key
@@ -665,7 +662,6 @@ defmodule FeistelCipher.MigrationTest do
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
-          time_offset: @time_offset,
           time_bucket: @time_bucket,
           data_bits: data_bits,
           key: key
@@ -682,7 +678,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Calculate expected time_value
       time_mask = Bitwise.bsl(1, time_bits) - 1
-      expected_time_value = div(epoch_now - @time_offset, @time_bucket) |> Bitwise.band(time_mask)
+      expected_time_value = div(epoch_now, @time_bucket) |> Bitwise.band(time_mask)
 
       actual_time_prefix = Bitwise.bsr(id, data_bits)
       assert actual_time_prefix == expected_time_value
@@ -706,7 +702,6 @@ defmodule FeistelCipher.MigrationTest do
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_encrypt_time", "seq", "id",
           time_bits: time_bits,
-          time_offset: @time_offset,
           time_bucket: @time_bucket,
           encrypt_time: true,
           data_bits: data_bits,
@@ -725,11 +720,11 @@ defmodule FeistelCipher.MigrationTest do
 
       # Calculate the expected encrypted time_value
       time_mask = Bitwise.bsl(1, time_bits) - 1
-      raw_time_value = div(epoch_now - @time_offset, @time_bucket) |> Bitwise.band(time_mask)
+      raw_time_value = div(epoch_now, @time_bucket) |> Bitwise.band(time_mask)
 
       # The time prefix should be the encrypted version of raw_time_value
       encrypted_time =
-        TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, $2, $3, 16)", [
           raw_time_value,
           time_bits,
           key
@@ -760,7 +755,7 @@ defmodule FeistelCipher.MigrationTest do
         data_component = Bitwise.band(row_id, data_mask)
 
         decrypted =
-          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
+          TestRepo.query!("SELECT public.feistel_cipher_v1($1, $2, $3, 16)", [
             data_component,
             data_bits,
             key
@@ -774,26 +769,16 @@ defmodule FeistelCipher.MigrationTest do
     end
 
     test "time_value overflow wraps with modulo (2^time_bits)" do
-      # Use very small time_bits (4) and a time_offset/bucket that forces overflow
+      # Use very small time_bits (4) and time_bucket of 1 second
+      # Current epoch (~1.7 billion) / 1 is already >> 16 (2^4), so it naturally overflows
       time_bits = 4
       data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
-
-      # Calculate time_offset so that current time produces a known overflow
-      # With 4 time_bits, values wrap at 16 (2^4)
-      %{rows: [[epoch_now]]} =
-        TestRepo.query!("SELECT extract(epoch from now())::bigint")
-
-      # Set offset and bucket so time_value will be > 16, forcing modulo
-      # time_value = floor((epoch_now - time_offset) / time_bucket)
-      # We want this to be >= 16 to test wrapping
-      time_offset = epoch_now - 20
       time_bucket = 1
 
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
-          time_offset: time_offset,
           time_bucket: time_bucket,
           data_bits: data_bits,
           key: key
@@ -818,13 +803,9 @@ defmodule FeistelCipher.MigrationTest do
       data_bits = 40
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
-      %{rows: [[epoch_now]]} =
-        TestRepo.query!("SELECT extract(epoch from now())::bigint")
-
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
-          time_offset: epoch_now - 10,
           time_bucket: 1,
           data_bits: data_bits,
           key: key
@@ -846,66 +827,6 @@ defmodule FeistelCipher.MigrationTest do
       assert second_time_bits - first_time_bits < 60
     end
 
-    test "works with future time_offset (negative time difference)" do
-      time_bits = 12
-      data_bits = 40
-      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
-
-      # Set time_offset far in the future so (now - offset) is negative
-      %{rows: [[epoch_now]]} =
-        TestRepo.query!("SELECT extract(epoch from now())::bigint")
-
-      future_offset = epoch_now + 100_000
-      time_bucket = 3600
-
-      trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
-          time_bits: time_bits,
-          time_offset: future_offset,
-          time_bucket: time_bucket,
-          data_bits: data_bits,
-          key: key
-        )
-
-      TestRepo.query!(trigger_sql)
-
-      # Insert multiple rows — should not error
-      for i <- 1..5 do
-        TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ($1)", ["Post #{i}"])
-      end
-
-      result = TestRepo.query!("SELECT seq, id FROM test_time_posts ORDER BY seq")
-      assert length(result.rows) == 5
-
-      time_mask = Bitwise.bsl(1, time_bits) - 1
-      data_mask = Bitwise.bsl(1, data_bits) - 1
-
-      # All time prefixes should be valid (in [0, 2^time_bits - 1]) and identical
-      prefixes =
-        for [_seq, id] <- result.rows do
-          prefix = Bitwise.bsr(id, data_bits)
-          assert prefix >= 0 and prefix <= time_mask
-          prefix
-        end
-
-      assert length(Enum.uniq(prefixes)) == 1
-
-      # Data parts should still be reversible
-      for [seq, id] <- result.rows do
-        data_component = Bitwise.band(id, data_mask)
-
-        decrypted =
-          TestRepo.query!("SELECT public.feistel_cipher($1, $2, $3, 16)", [
-            data_component,
-            data_bits,
-            key
-          ])
-
-        [[actual]] = decrypted.rows
-        assert actual == seq
-      end
-    end
-
     test "NULL handling works with time_bits > 0" do
       time_bits = 12
       data_bits = 40
@@ -923,7 +844,6 @@ defmodule FeistelCipher.MigrationTest do
       trigger_sql =
         FeistelCipher.up_for_trigger("public", "test_time_nullable", "seq", "id",
           time_bits: time_bits,
-          time_offset: @time_offset,
           time_bucket: @time_bucket,
           data_bits: data_bits
         )
@@ -956,14 +876,14 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "CREATE TRIGGER"
       assert sql =~ "users_encrypt_seq_to_id_trigger"
       assert sql =~ "public.users"
-      assert sql =~ "feistel_column_trigger"
+      assert sql =~ "feistel_column_trigger_v1"
       # default data_bits: 40
       assert sql =~ "40"
       assert sql =~ "'seq'"
       assert sql =~ "'id'"
-      # default time_bits: 12, time_offset: 0, time_bucket: 86400
+      # default time_bits: 12, time_bucket: 86400
+      # trigger params: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds
       assert sql =~ "12"
-      assert sql =~ ", 0,"
       assert sql =~ "86400"
     end
 
@@ -994,7 +914,7 @@ defmodule FeistelCipher.MigrationTest do
           time_bits: 0
         )
 
-      assert sql =~ "crypto.feistel_column_trigger"
+      assert sql =~ "crypto.feistel_column_trigger_v1"
     end
 
     test "raises for odd data_bits" do
@@ -1113,7 +1033,7 @@ defmodule FeistelCipher.MigrationTest do
       sql =
         FeistelCipher.up_for_trigger("public", "users", "seq", "id", encrypt_time: true)
 
-      # encrypt_time = true (6th arg: from, to, time_bits, time_offset, time_bucket, encrypt_time, ...)
+      # encrypt_time = true (5th arg: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds)
       assert sql =~ ", true, 40,"
     end
   end

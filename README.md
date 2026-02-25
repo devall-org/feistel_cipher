@@ -43,7 +43,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 0.16.0"}]
+  [{:feistel_cipher, "~> 1.0"}]
 end
 ```
 
@@ -66,6 +66,45 @@ Both methods support the following options:
 > **Fun Fact**: Notice the timestamp `19730501000000` in the migration file generated during installation? That's May 1, 1973 - the day [Horst Feistel published his groundbreaking paper](https://en.wikipedia.org/wiki/Feistel_cipher#History) at IBM, introducing the cipher structure that powers this library. We thought it deserved a permanent timestamp in your database history! 🎂
 
 
+## Upgrading from v0.x to v1.0
+
+v1.0 introduces time-based prefixes and renames `bits` to `data_bits`. The new PostgreSQL functions use a `_v1` suffix (`feistel_cipher_v1`, `feistel_column_trigger_v1`), so they coexist with the old ones during migration.
+
+### Quick Guide
+
+1. **Update dependency** to `~> 1.0`
+
+2. **Run the upgrade task** to generate a database migration:
+
+```bash
+mix feistel_cipher.upgrade
+```
+
+3. **Edit the generated migration** — fill in your `functions_salt` and trigger details:
+
+```elixir
+def up do
+  # Step 1: Install v1 functions (coexists with old ones)
+  FeistelCipher.up_for_functions(functions_prefix: "public", functions_salt: YOUR_SALT)
+
+  # Step 2: For each trigger, drop old and recreate with v1
+  #   bits: N  →  time_bits: 0, data_bits: N
+  #   (old default for bits was 52)
+  execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+  execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
+    time_bits: 0, data_bits: 52, functions_prefix: "public")
+
+  # Step 3 (optional): Drop old functions
+  execute "DROP FUNCTION IF EXISTS public.feistel_cipher(bigint, int, bigint, int)"
+  execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
+end
+```
+
+**Key changes**:
+- `bits: N` → `time_bits: 0, data_bits: N` (use `time_bits: 0` for backward compatibility)
+- `time_offset` option removed
+- Find your `functions_salt` in the migration with timestamp `19730501000000`
+
 ## Usage Example
 
 ### 1. Create Migration
@@ -80,9 +119,8 @@ defmodule MyApp.Repo.Migrations.CreatePosts do
       add :title, :string
     end
 
-    # 2025-01-01 00:00:00 UTC, 1 hour buckets
+    # 1 hour buckets
     execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
-      time_offset: 1_735_689_600,
       time_bucket: 3600
     )
   end
@@ -167,8 +205,6 @@ The `up_for_trigger/5` function accepts these options:
 
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
 - `time_bits`: Time prefix bits (default: 12). Set to 0 for no time prefix
-- `time_offset`: Base epoch in Unix seconds (default: `0`)
-  - Example: `1_735_689_600` for 2025-01-01 00:00:00 UTC
 - `time_bucket`: Time bucket size in seconds (default: `86400`)
   - Example: `3600` for 1 hour, `86400` for 1 day
   - Rows inserted within the same bucket share the same time prefix
@@ -191,15 +227,14 @@ The `up_for_trigger/5` function accepts these options:
 - `time_bits` must be even when `encrypt_time: true`
 - `data_bits` must be even
 
-> ⚠️ You cannot reliably compare IDs by `time_bits` alone to determine temporal order. Because `time_value = floor((now - time_offset) / time_bucket) mod 2^time_bits`, the prefix wraps after `time_bucket * 2^time_bits` seconds. This feature is intended to improve PostgreSQL incremental backup locality, not to provide UUIDv7-style global time ordering.
+> ⚠️ You cannot reliably compare IDs by `time_bits` alone to determine temporal order. Because `time_value = floor(now / time_bucket) mod 2^time_bits`, the prefix wraps after `time_bucket * 2^time_bits` seconds. This feature is intended to improve PostgreSQL incremental backup locality, not to provide UUIDv7-style global time ordering.
 
 Example with custom options:
 ```elixir
 execute FeistelCipher.up_for_trigger(
   "public", "posts", "seq", "id",
   time_bits: 8,
-  time_offset: 1_735_689_600,
-  time_bucket: 86400,
+  time_bucket: 3600,
   data_bits: 32,
   key: 123456789,
   rounds: 8,
@@ -239,7 +274,6 @@ defmodule MyApp.Repo.Migrations.RenamePostsColumns do
 
     execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
       time_bits: 12,               # Must match original
-      time_offset: 1_735_689_600,  # Must match original
       time_bucket: 3600,           # Must match original
       data_bits: 40,               # Must match original
       key: old_key,                # Key from OLD column names
@@ -250,7 +284,7 @@ defmodule MyApp.Repo.Migrations.RenamePostsColumns do
 end
 ```
 
-**⚠️ Critical**: When recreating triggers, ALL encryption parameters (`time_bits`, `time_offset`, `time_bucket`, `data_bits`, `key`, `rounds`, `functions_prefix`) MUST match the original values. Otherwise:
+**⚠️ Critical**: When recreating triggers, ALL encryption parameters (`time_bits`, `time_bucket`, `data_bits`, `key`, `rounds`, `functions_prefix`) MUST match the original values. Otherwise:
 - Updates will fail with exceptions
 - 1:1 mapping breaks (new inserts may produce duplicate encrypted values)
 
@@ -270,7 +304,6 @@ end
 create unique_index(:posts, [:disp_id])
 
 execute FeistelCipher.up_for_trigger("public", "posts", "id", "disp_id",
-  time_offset: 1_735_689_600,
   time_bucket: 3600
 )
 
