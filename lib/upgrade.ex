@@ -67,45 +67,30 @@ if Code.ensure_loaded?(Igniter) do
 
           migration = """
           def up do
-            # === Step 1: Install v1 functions ===
-            # These coexist with the old v0.x functions (feistel_cipher, feistel_column_trigger).
+            # Install v1 functions (coexist with old v0.x functions).
             # Use the SAME functions_salt from your original feistel_cipher.install migration.
             # Find it in the migration file with timestamp 19730501000000.
             FeistelCipher.up_for_functions(functions_prefix: "#{functions_prefix}", functions_salt: :REPLACE_WITH_YOUR_SALT)
-
-            # === Step 2: Upgrade each trigger from v0.x to v1 ===
-            # For each table using Feistel cipher, drop the old trigger and create a new one.
-            # Find your triggers in previous migrations where up_for_trigger was called.
-            #
-            # Upgrade guide:
-            #   bits: N  →  time_bits: 0, data_bits: N
-            #   (if bits was not specified, the old default was 52)
-            #
-            # Example:
-            #   execute FeistelCipher.force_down_for_trigger("#{functions_prefix}", "posts", "seq", "id")
-            #   execute FeistelCipher.up_for_trigger("#{functions_prefix}", "posts", "seq", "id",
-            #     time_bits: 0, data_bits: 52, functions_prefix: "#{functions_prefix}")
-
-            # === Step 3 (optional): Drop old v0.x functions ===
-            # After all triggers are upgraded, you can remove the old functions.
-            # Which functions exist depends on which version you're upgrading from:
-            #
-            #   # v0.15.0
-            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_cipher(bigint, int, bigint, int)"
-            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_column_trigger()"
-            #
-            #   # v0.14.0
-            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_encrypt(bigint, int, bigint, int)"
-            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel_column_trigger()"
-            #
-            #   # v0.13.x or earlier
-            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.feistel(bigint, int, bigint)"
-            #   execute "DROP FUNCTION IF EXISTS #{functions_prefix}.handle_feistel_encryption()"
           end
 
           def down do
-            raise "Irreversible migration"
+            FeistelCipher.down_for_functions(functions_prefix: "#{functions_prefix}")
           end
+          """
+
+          notice = """
+
+          ⚠️  Next steps after running this migration:
+
+            For Ash users:
+              1. Run `mix ash.codegen --name upgrade_feistel_v1` to generate trigger migrations
+              2. In the generated migration, replace `down_for_trigger` with `force_down_for_trigger`
+
+            For plain Ecto users:
+              See UPGRADE.md for trigger migration instructions
+
+            Optionally, add old function cleanup to the LAST migration.
+            See https://github.com/devall-org/feistel_cipher/blob/main/UPGRADE.md
           """
 
           igniter
@@ -113,6 +98,7 @@ if Code.ensure_loaded?(Igniter) do
             body: migration,
             on_exists: :skip
           )
+          |> Igniter.add_notice(notice)
 
         {:error, igniter} ->
           igniter

@@ -22,43 +22,49 @@ v0.14.0/v0.15.0 → v1.0.0 is **fully backward compatible** when using `time_bit
 mix feistel_cipher.upgrade
 ```
 
-3. Edit the generated migration — fill in your `functions_salt` and trigger details:
+3. Edit the generated migration to fill in your `functions_salt` (find it in the migration with timestamp 19730501000000):
 
 ```elixir
 def up do
-  # Step 1: Install v1 functions (coexists with old ones)
-  # Find your functions_salt in the migration with timestamp 19730501000000.
+  # Install v1 functions (coexist with old v0.x functions).
   FeistelCipher.up_for_functions(functions_prefix: "public", functions_salt: YOUR_SALT)
-
-  # Step 2: For each trigger, drop old and recreate with v1
-  #   bits: N  →  time_bits: 0, data_bits: N
-  #   (old default for bits was 52)
-  execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
-  execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
-    time_bits: 0, data_bits: 52, functions_prefix: "public")
-
-  # Step 3 (optional): Drop old functions after all triggers are upgraded.
-  # Which functions exist depends on which version you're upgrading from:
-  #
-  # v0.15.0:
-  execute "DROP FUNCTION IF EXISTS public.feistel_cipher(bigint, int, bigint, int)"
-  execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
-  #
-  # v0.14.0:
-  # execute "DROP FUNCTION IF EXISTS public.feistel_encrypt(bigint, int, bigint, int)"
-  # execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
-  #
-  # v0.13.x or earlier:
-  # execute "DROP FUNCTION IF EXISTS public.feistel(bigint, int, bigint)"
-  # execute "DROP FUNCTION IF EXISTS public.handle_feistel_encryption()"
 end
 
 def down do
-  raise "Irreversible migration"
+  FeistelCipher.down_for_functions(functions_prefix: "public")
 end
 ```
 
-4. Run `mix ecto.migrate`
+4. Generate trigger migration(s):
+
+   **For Ash users**: Run `mix ash.codegen --name upgrade_feistel_v1`. In the generated migration, replace `down_for_trigger` with `force_down_for_trigger`.
+
+   **For plain Ecto users**: Create a separate migration to upgrade each trigger from v0.x to v1. For each table using Feistel cipher, drop the old trigger and recreate with v1:
+
+   ```elixir
+   # bits: N  ->  time_bits: 0, data_bits: N  (old default for bits was 52)
+   execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+   execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
+     time_bits: 0, data_bits: 52, functions_prefix: "public")
+   ```
+
+5. **(Optional)** Drop old v0.x functions in your **last** migration. Which functions exist depends on the version you're upgrading from:
+
+   ```elixir
+   # v0.15.0
+   execute "DROP FUNCTION IF EXISTS public.feistel_cipher(bigint, int, bigint, int)"
+   execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
+
+   # v0.14.0
+   execute "DROP FUNCTION IF EXISTS public.feistel_encrypt(bigint, int, bigint, int)"
+   execute "DROP FUNCTION IF EXISTS public.feistel_column_trigger()"
+
+   # v0.13.x or earlier
+   execute "DROP FUNCTION IF EXISTS public.feistel(bigint, int, bigint)"
+   execute "DROP FUNCTION IF EXISTS public.handle_feistel_encryption()"
+   ```
+
+6. Run `mix ecto.migrate`
 
 ---
 
