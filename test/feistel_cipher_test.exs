@@ -512,7 +512,9 @@ defmodule FeistelCipher.MigrationTest do
 
       # Create trigger for nullable table (time_bits: 0)
       trigger_sql =
-        FeistelCipher.up_for_legacy_trigger("public", "test_nullable_seq", "seq", "id", time_bits: 0)
+        FeistelCipher.up_for_legacy_trigger("public", "test_nullable_seq", "seq", "id",
+          time_bits: 0
+        )
 
       TestRepo.query!(trigger_sql)
 
@@ -547,7 +549,9 @@ defmodule FeistelCipher.MigrationTest do
 
       # Create trigger for nullable table (time_bits: 0)
       trigger_sql =
-        FeistelCipher.up_for_legacy_trigger("public", "test_nullable_update", "seq", "id", time_bits: 0)
+        FeistelCipher.up_for_legacy_trigger("public", "test_nullable_update", "seq", "id",
+          time_bits: 0
+        )
 
       TestRepo.query!(trigger_sql)
 
