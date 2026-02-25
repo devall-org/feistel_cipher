@@ -101,7 +101,7 @@ defmodule FeistelCipher.EctoIntegrationTest do
 
       %{rows: [[decrypted_seq]]} =
         TestRepo.query!(
-          "SELECT public.feistel_cipher($1::bigint, $2, $3::bigint, 16)",
+          "SELECT public.feistel_cipher_v1($1::bigint, $2, $3::bigint, 16)",
           [data_component, data_bits, key]
         )
 
@@ -110,7 +110,7 @@ defmodule FeistelCipher.EctoIntegrationTest do
       # Verify determinism: encrypting seq gives the same data_component
       %{rows: [[db_data_component]]} =
         TestRepo.query!(
-          "SELECT public.feistel_cipher($1::bigint, $2, $3::bigint, 16)",
+          "SELECT public.feistel_cipher_v1($1::bigint, $2, $3::bigint, 16)",
           [seq, data_bits, key]
         )
 
@@ -125,17 +125,16 @@ defmodule FeistelCipher.EctoIntegrationTest do
       assert post.id != post.seq
       assert post.title == "Hello"
 
-      # Default: time_bits: 12, time_offset: 0, time_bucket: 86400, data_bits: 40
+      # Default: time_bits: 12, time_bucket: 86400, data_bits: 40
       time_bits = 12
       data_bits = 40
-      time_offset = 0
       time_bucket = 86400
 
       epoch_now = System.os_time(:second)
       time_mask = Bitwise.bsl(1, time_bits) - 1
 
       expected_time_prefix =
-        div(epoch_now - time_offset, time_bucket) |> Bitwise.band(time_mask)
+        div(epoch_now, time_bucket) |> Bitwise.band(time_mask)
 
       actual_time_prefix = Bitwise.bsr(post.id, data_bits)
       assert actual_time_prefix == expected_time_prefix

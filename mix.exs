@@ -4,7 +4,7 @@ defmodule FeistelCipher.MixProject do
   def project do
     [
       app: :feistel_cipher,
-      version: "0.16.0",
+      version: "1.0.0",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       consolidate_protocols: Mix.env() not in [:dev, :test],
@@ -68,7 +68,7 @@ defmodule FeistelCipher.MixProject do
       links: %{
         "GitHub" => "https://github.com/devall-org/feistel_cipher"
       },
-      files: ~w(lib mix.exs README.md LICENSE assets)
+      files: ~w(lib mix.exs README.md UPGRADE.md LICENSE assets)
     ]
   end
 end
