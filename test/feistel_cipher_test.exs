@@ -383,7 +383,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Get the SQL for creating trigger (time_bits: 0 for backward-compatible behavior)
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_posts", "seq", "id", time_bits: 0)
+        FeistelCipher.up_for_legacy_trigger("public", "test_posts", "seq", "id", time_bits: 0)
 
       # Execute trigger creation
       TestRepo.query!(trigger_sql)
@@ -512,7 +512,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Create trigger for nullable table (time_bits: 0)
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_nullable_seq", "seq", "id", time_bits: 0)
+        FeistelCipher.up_for_legacy_trigger("public", "test_nullable_seq", "seq", "id", time_bits: 0)
 
       TestRepo.query!(trigger_sql)
 
@@ -547,7 +547,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Create trigger for nullable table (time_bits: 0)
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_nullable_update", "seq", "id", time_bits: 0)
+        FeistelCipher.up_for_legacy_trigger("public", "test_nullable_update", "seq", "id", time_bits: 0)
 
       TestRepo.query!(trigger_sql)
 
@@ -610,7 +610,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
           time_bucket: @time_bucket,
           data_bits: data_bits,
@@ -660,7 +660,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
           time_bucket: @time_bucket,
           data_bits: data_bits,
@@ -700,7 +700,7 @@ defmodule FeistelCipher.MigrationTest do
       """)
 
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_encrypt_time", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "test_encrypt_time", "seq", "id",
           time_bits: time_bits,
           time_bucket: @time_bucket,
           encrypt_time: true,
@@ -777,7 +777,7 @@ defmodule FeistelCipher.MigrationTest do
       time_bucket = 1
 
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
           time_bucket: time_bucket,
           data_bits: data_bits,
@@ -804,7 +804,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
 
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_time_posts", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "test_time_posts", "seq", "id",
           time_bits: time_bits,
           time_bucket: 1,
           data_bits: data_bits,
@@ -842,7 +842,7 @@ defmodule FeistelCipher.MigrationTest do
       """)
 
       trigger_sql =
-        FeistelCipher.up_for_trigger("public", "test_time_nullable", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "test_time_nullable", "seq", "id",
           time_bits: time_bits,
           time_bucket: @time_bucket,
           data_bits: data_bits
@@ -869,12 +869,13 @@ defmodule FeistelCipher.MigrationTest do
     end
   end
 
-  describe "up_for_trigger/5" do
+  describe "up_for_legacy_trigger/5" do
     test "generates correct SQL with defaults" do
-      sql = FeistelCipher.up_for_trigger("public", "users", "seq", "id")
+      sql = FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id")
 
       assert sql =~ "CREATE TRIGGER"
       assert sql =~ "users_encrypt_seq_to_id_trigger"
+      refute sql =~ "users_encrypt_seq_to_id_v1_trigger"
       assert sql =~ "public.users"
       assert sql =~ "feistel_column_trigger_v1"
       # default data_bits: 40
@@ -889,7 +890,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "uses custom data_bits" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           time_bits: 8,
           data_bits: 32
         )
@@ -899,7 +900,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "uses custom key" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           key: 123_456,
           time_bits: 0
         )
@@ -909,7 +910,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "uses custom functions_prefix" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           functions_prefix: "crypto",
           time_bits: 0
         )
@@ -919,7 +920,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "raises for odd data_bits" do
       assert_raise ArgumentError, ~r/data_bits must be an even number/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           time_bits: 0,
           data_bits: 41
         )
@@ -928,7 +929,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "allows data_bits = 0" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           time_bits: 0,
           data_bits: 0
         )
@@ -938,7 +939,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "raises when data_bits is negative" do
       assert_raise ArgumentError, ~r/data_bits must be non-negative/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           time_bits: 0,
           data_bits: -2
         )
@@ -947,7 +948,7 @@ defmodule FeistelCipher.MigrationTest do
 
     test "allows time_bits + data_bits = 63 when encrypt_time is false" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           time_bits: 13,
           data_bits: 50,
           encrypt_time: false
@@ -961,7 +962,7 @@ defmodule FeistelCipher.MigrationTest do
       assert_raise ArgumentError,
                    ~r/time_bits \+ data_bits must be <= 63 when encrypt_time is false/,
                    fn ->
-                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                     FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
                        time_bits: 14,
                        data_bits: 50,
                        encrypt_time: false
@@ -973,7 +974,7 @@ defmodule FeistelCipher.MigrationTest do
       assert_raise ArgumentError,
                    ~r/time_bits \+ data_bits must be <= 62 when encrypt_time is true/,
                    fn ->
-                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                     FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
                        time_bits: 12,
                        data_bits: 52,
                        encrypt_time: true
@@ -985,7 +986,7 @@ defmodule FeistelCipher.MigrationTest do
       assert_raise ArgumentError,
                    ~r/time_bits must be >= 2 when encrypt_time is true/,
                    fn ->
-                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                     FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
                        time_bits: 0,
                        encrypt_time: true,
                        data_bits: 40
@@ -997,7 +998,7 @@ defmodule FeistelCipher.MigrationTest do
       assert_raise ArgumentError,
                    ~r/time_bits must be an even number when encrypt_time is true/,
                    fn ->
-                     FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+                     FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
                        time_bits: 11,
                        encrypt_time: true,
                        data_bits: 40
@@ -1007,13 +1008,13 @@ defmodule FeistelCipher.MigrationTest do
 
     test "raises when time_bucket is not positive" do
       assert_raise ArgumentError, ~r/time_bucket must be positive/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id", time_bucket: 0)
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id", time_bucket: 0)
       end
     end
 
     test "raises for invalid key" do
       assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           key: -1,
           time_bits: 0
         )
@@ -1022,7 +1023,7 @@ defmodule FeistelCipher.MigrationTest do
       max_key = Bitwise.bsl(1, 31)
 
       assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id",
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
           key: max_key,
           time_bits: 0
         )
@@ -1031,20 +1032,59 @@ defmodule FeistelCipher.MigrationTest do
 
     test "includes encrypt_time flag in SQL" do
       sql =
-        FeistelCipher.up_for_trigger("public", "users", "seq", "id", encrypt_time: true)
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id", encrypt_time: true)
 
       # encrypt_time = true (5th arg: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds)
       assert sql =~ ", true, 40,"
     end
   end
 
-  describe "down_for_trigger/4" do
+  describe "down_for_legacy_trigger/4" do
     test "generates SQL with safety guard" do
-      sql = FeistelCipher.down_for_trigger("public", "users", "seq", "id")
+      sql = FeistelCipher.down_for_legacy_trigger("public", "users", "seq", "id")
 
       assert sql =~ "RAISE EXCEPTION"
       assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"
+      refute sql =~ "v1_trigger"
       assert sql =~ "public.users"
+    end
+  end
+
+  describe "up_for_v1_trigger/5" do
+    test "generates correct SQL with v1 trigger name" do
+      sql = FeistelCipher.up_for_v1_trigger("public", "users", "seq", "id")
+
+      assert sql =~ "CREATE TRIGGER"
+      assert sql =~ "users_encrypt_seq_to_id_v1_trigger"
+      assert sql =~ "public.users"
+      assert sql =~ "feistel_column_trigger_v1"
+    end
+  end
+
+  describe "down_for_v1_trigger/4" do
+    test "generates SQL with safety guard and v1 trigger name" do
+      sql = FeistelCipher.down_for_v1_trigger("public", "users", "seq", "id")
+
+      assert sql =~ "RAISE EXCEPTION"
+      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_v1_trigger"
+      assert sql =~ "public.users"
+    end
+  end
+
+  describe "force_down_for_legacy_trigger/4" do
+    test "generates SQL with legacy trigger name" do
+      sql = FeistelCipher.force_down_for_legacy_trigger("public", "users", "seq", "id")
+
+      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"
+      refute sql =~ "v1_trigger"
+    end
+  end
+
+  describe "force_down_for_v1_trigger/4" do
+    test "generates SQL with v1 trigger name" do
+      sql = FeistelCipher.force_down_for_v1_trigger("public", "users", "seq", "id")
+
+      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_v1_trigger"
     end
   end
 end

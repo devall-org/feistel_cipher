@@ -269,17 +269,30 @@ defmodule FeistelCipher do
 
   ## Examples
 
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id")
+      FeistelCipher.up_for_legacy_trigger("public", "posts", "seq", "id")
 
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
+      FeistelCipher.up_for_legacy_trigger("public", "posts", "seq", "id",
         time_bits: 8, time_bucket: 3600, data_bits: 32)
 
-      FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
+      FeistelCipher.up_for_legacy_trigger("public", "posts", "seq", "id",
         time_bits: 0)
 
   """
-  @spec up_for_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) :: String.t()
-  def up_for_trigger(prefix, table, from, to, opts \\ []) when is_list(opts) do
+  @spec up_for_legacy_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) :: String.t()
+  def up_for_legacy_trigger(prefix, table, from, to, opts \\ []) when is_list(opts) do
+    do_up_for_trigger(prefix, table, from, to, opts, &legacy_trigger_name/3)
+  end
+
+  @doc """
+  Same as `up_for_legacy_trigger/5` but uses v1 trigger naming convention.
+  """
+  @spec up_for_v1_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) ::
+          String.t()
+  def up_for_v1_trigger(prefix, table, from, to, opts \\ []) when is_list(opts) do
+    do_up_for_trigger(prefix, table, from, to, opts, &trigger_name/3)
+  end
+
+  defp do_up_for_trigger(prefix, table, from, to, opts, name_fn) do
     time_bits = Keyword.get(opts, :time_bits, 12)
     encrypt_time = Keyword.get(opts, :encrypt_time, false)
 
@@ -334,7 +347,7 @@ defmodule FeistelCipher do
     functions_prefix = Keyword.get(opts, :functions_prefix, "public")
 
     """
-    CREATE TRIGGER #{trigger_name(table, from, to)}
+    CREATE TRIGGER #{name_fn.(table, from, to)}
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
@@ -348,19 +361,35 @@ defmodule FeistelCipher do
   The generated SQL includes a safety guard that prevents execution by default.
   You must manually remove the `RAISE EXCEPTION` block after understanding the risks.
 
-  For legitimate use cases (like column rename), use `force_down_for_trigger/4` instead.
+  For legitimate use cases (like column rename), use `force_down_for_legacy_trigger/4` instead.
 
   ## Example
 
-      FeistelCipher.down_for_trigger("public", "posts", "seq", "id")
+      FeistelCipher.down_for_legacy_trigger("public", "posts", "seq", "id")
 
   """
-  @spec down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
-  def down_for_trigger(prefix, table, from, to) do
+  @spec down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  def down_for_legacy_trigger(prefix, table, from, to) do
     """
     DO $$
     BEGIN
-      RAISE EXCEPTION 'down_for_trigger: trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
+      RAISE EXCEPTION 'down_for_legacy_trigger: trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_legacy_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
+    END
+    $$;
+
+    DROP TRIGGER #{legacy_trigger_name(table, from, to)} ON #{prefix}.#{table};
+    """
+  end
+
+  @doc """
+  Same as `down_for_legacy_trigger/4` but targets v1 trigger naming convention.
+  """
+  @spec down_for_v1_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  def down_for_v1_trigger(prefix, table, from, to) do
+    """
+    DO $$
+    BEGIN
+      RAISE EXCEPTION 'down_for_v1_trigger: trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_v1_trigger/4 or force_down_for_legacy_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
     END
     $$;
 
@@ -399,7 +428,7 @@ defmodule FeistelCipher do
   - Empty table with no existing encrypted data (safe to use different parameters)
 
   **Finding original parameters**: Check your migration file where the trigger was created.
-  Look for the `up_for_trigger/5` call and its options.
+  Look for the `up_for_legacy_trigger/5` call and its options.
   For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
 
   ## Examples
@@ -407,7 +436,7 @@ defmodule FeistelCipher do
       # Example: Column rename (seq -> sequence, id -> external_id)
       def change do
         # 1. Drop the old trigger
-        execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+        execute FeistelCipher.force_down_for_legacy_trigger("public", "posts", "seq", "id")
 
         # 2. Rename columns
         rename table(:posts), :seq, to: :sequence
@@ -417,7 +446,7 @@ defmodule FeistelCipher do
         # IMPORTANT: Generate key using OLD column names (seq, id)
         old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
-        execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
+        execute FeistelCipher.up_for_legacy_trigger("public", "posts", "sequence", "external_id",
           time_bits: 12,               # Must match original
           time_bucket: 3600,           # Must match original
           data_bits: 40,               # Must match original
@@ -428,8 +457,16 @@ defmodule FeistelCipher do
       end
 
   """
-  @spec force_down_for_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
-  def force_down_for_trigger(prefix, table, from, to) do
+  @spec force_down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  def force_down_for_legacy_trigger(prefix, table, from, to) do
+    "DROP TRIGGER #{legacy_trigger_name(table, from, to)} ON #{prefix}.#{table};"
+  end
+
+  @doc """
+  Same as `force_down_for_legacy_trigger/4` but targets v1 trigger naming convention.
+  """
+  @spec force_down_for_v1_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  def force_down_for_v1_trigger(prefix, table, from, to) do
     "DROP TRIGGER #{trigger_name(table, from, to)} ON #{prefix}.#{table};"
   end
 
@@ -447,7 +484,7 @@ defmodule FeistelCipher do
       key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
       # Use it when recreating with new column names
-      FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id", key: key)
+      FeistelCipher.up_for_legacy_trigger("public", "posts", "sequence", "external_id", key: key)
 
   """
   @spec generate_key(String.t(), String.t(), String.t(), String.t()) :: non_neg_integer()
@@ -457,6 +494,10 @@ defmodule FeistelCipher do
   end
 
   defp trigger_name(table, from, to) do
+    "#{table}_encrypt_#{from}_to_#{to}_v1_trigger"
+  end
+
+  defp legacy_trigger_name(table, from, to) do
     "#{table}_encrypt_#{from}_to_#{to}_trigger"
   end
 
