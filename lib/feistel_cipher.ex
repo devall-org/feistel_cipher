@@ -278,7 +278,8 @@ defmodule FeistelCipher do
         time_bits: 0)
 
   """
-  @spec up_for_legacy_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) :: String.t()
+  @spec up_for_legacy_trigger(String.t(), String.t(), String.t(), String.t(), keyword()) ::
+          String.t()
   def up_for_legacy_trigger(prefix, table, from, to, opts \\ []) when is_list(opts) do
     do_up_for_trigger(prefix, table, from, to, opts, &legacy_trigger_name/3)
   end
@@ -457,7 +458,8 @@ defmodule FeistelCipher do
       end
 
   """
-  @spec force_down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  @spec force_down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) ::
+          String.t()
   def force_down_for_legacy_trigger(prefix, table, from, to) do
     "DROP TRIGGER #{legacy_trigger_name(table, from, to)} ON #{prefix}.#{table};"
   end
