@@ -37,14 +37,14 @@ end
 
 4. Generate trigger migration(s):
 
-   **For Ash users**: Run `mix ash.codegen --name upgrade_feistel_v1`. In the generated migration, replace `down_for_trigger` with `force_down_for_trigger`.
+   **For Ash users**: Run `mix ash.codegen --name upgrade_feistel_triggers_to_v1`. In the generated migration's `up` function, replace `down_for_trigger` (or `down_for_v1_trigger`) with `force_down_for_legacy_trigger` to drop legacy triggers. Also in the `down` function, replace `up_for_trigger` with `up_for_legacy_trigger` and `bits:` with `time_bits: 0, data_bits:`.
 
    **For plain Ecto users**: Create a separate migration to upgrade each trigger from v0.x to v1. For each table using Feistel cipher, drop the old trigger and recreate with v1:
 
    ```elixir
    # bits: N  ->  time_bits: 0, data_bits: N  (old default for bits was 52)
-   execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
-   execute FeistelCipher.up_for_trigger("public", "posts", "seq", "id",
+   execute FeistelCipher.force_down_for_legacy_trigger("public", "posts", "seq", "id")
+   execute FeistelCipher.up_for_v1_trigger("public", "posts", "seq", "id",
      time_bits: 0, data_bits: 52, functions_prefix: "public")
    ```
 
