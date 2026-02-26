@@ -408,7 +408,7 @@ defmodule FeistelCipher.MigrationTest do
       assert is_integer(seq)
       assert is_integer(id)
 
-      # Verify id is encrypted version of seq (data_bits default: 40)
+      # Verify id is encrypted version of seq (data_bits default: 38)
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
@@ -426,7 +426,7 @@ defmodule FeistelCipher.MigrationTest do
       result = TestRepo.query!("SELECT seq, id FROM test_posts ORDER BY seq")
       assert length(result.rows) == 5
 
-      # Verify all are encrypted correctly (data_bits default: 40)
+      # Verify all are encrypted correctly (data_bits default: 38)
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       for [seq, id] <- result.rows do
@@ -571,7 +571,7 @@ defmodule FeistelCipher.MigrationTest do
       # Calculate the key for this specific table
       key = FeistelCipher.generate_key("public", "test_nullable_update", "seq", "id")
 
-      # Verify id is encrypted version of seq (data_bits default: 40)
+      # Verify id is encrypted version of seq (data_bits default: 38)
       decrypted =
         TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [id, key])
 
@@ -882,13 +882,13 @@ defmodule FeistelCipher.MigrationTest do
       refute sql =~ "users_encrypt_seq_to_id_v1_trigger"
       assert sql =~ "public.users"
       assert sql =~ "feistel_trigger_v1"
-      # default data_bits: 40
-      assert sql =~ "40"
+      # default data_bits: 38
+      assert sql =~ "38"
       assert sql =~ "'seq'"
       assert sql =~ "'id'"
-      # default time_bits: 12, time_bucket: 86400
+      # default time_bits: 14, time_bucket: 86400
       # trigger params: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds
-      assert sql =~ "12"
+      assert sql =~ "14"
       assert sql =~ "86400"
     end
 

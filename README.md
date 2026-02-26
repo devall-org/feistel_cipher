@@ -153,7 +153,8 @@ With a time prefix, rows from the same time bucket land on nearby pages, so incr
 Use a time prefix when you want write locality and smaller incremental backups on large/high-write tables.
 
 - Example: `events`, `logs`, `orders`, `messages` tables that receive continuous inserts.
-- Typical config: `time_bits: 12`, `time_bucket: 86400` (daily, default) or `3600` (hourly for tighter locality windows).
+- Typical config: `time_bits: 14`, `time_bucket: 86400` (daily, default) or `3600` (hourly for tighter locality windows).
+- With `time_bits: 14`, `time_bucket: 86400`, and `encrypt_time: false`, the time prefix wraps after about 44 years 10 months.
 
 ### When NOT to Use Time Prefix (`time_bits: 0`)
 
@@ -169,14 +170,14 @@ The `up_for_trigger/5` function accepts these options:
 > ⚠️ **Important**: Once a trigger is created, encryption parameters cannot be changed. Changing them would break encryption consistency for existing data.
 
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
-- `time_bits`: Time prefix bits (default: 12). Set to 0 for no time prefix
+- `time_bits`: Time prefix bits (default: 14). Set to 0 for no time prefix
 - `time_bucket`: Time bucket size in seconds (default: `86400`)
   - Example: `86400` for 1 day (default), `3600` for 1 hour
   - Rows inserted within the same bucket share the same time prefix
 - `encrypt_time`: Whether to encrypt the time prefix with Feistel cipher (default: `false`)
   - `false`: Time prefix may reflect recent bucket progression, but it is **not** a globally orderable timestamp
   - `true`: Time prefix is encrypted (hides time patterns, but same-bucket rows still share prefix). `time_bits` must be even
-- `data_bits`: Data cipher bits (default: 40, must be even)
+- `data_bits`: Data cipher bits (default: 38, must be even)
   - **Choose different sizes per column**: Unlike UUIDs (fixed 16 bytes), tailor each column's ID length
   - Example: User ID = 32 bits (~4B values), Post ID = 40 bits (~1T values)
 - `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
@@ -238,9 +239,9 @@ defmodule MyApp.Repo.Migrations.RenamePostsColumns do
     old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
     execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
-      time_bits: 12,               # Must match original
+      time_bits: 14,               # Must match original
       time_bucket: 86400,          # Must match original
-      data_bits: 40,               # Must match original
+      data_bits: 38,               # Must match original
       key: old_key,                # Key from OLD column names
       rounds: 16,                  # Must match original
       functions_prefix: "public"   # Must match original

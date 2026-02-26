@@ -90,8 +90,8 @@ defmodule FeistelCipher do
           RAISE EXCEPTION 'feistel_cipher_v1: key must be between 0 and 2^31-1: %', key;
         END IF;
 
-        IF value > mask THEN
-          RAISE EXCEPTION 'feistel_cipher_v1: value is larger than % bits: %', bits, value;
+        IF value < 0 OR value > mask THEN
+          RAISE EXCEPTION 'feistel_cipher_v1: value must be between 0 and % for % bits: %', mask, bits, value;
         END IF;
 
         IF rounds < 1 OR rounds > 32 THEN
@@ -289,8 +289,8 @@ defmodule FeistelCipher do
         IF key < 0 OR key >= (1::bigint << 31) THEN
           RAISE EXCEPTION 'feistel key must be between 0 and 2^31-1: %', key;
         END IF;
-        IF input > mask THEN
-          RAISE EXCEPTION 'feistel input is larger than % bits: %', bits, input;
+        IF input < 0 OR input > mask THEN
+          RAISE EXCEPTION 'feistel input must be between 0 and % for % bits: %', mask, bits, input;
         END IF;
         left_half  := (input >> half_bits) & half_mask;
         right_half := input & half_mask;
@@ -383,10 +383,10 @@ defmodule FeistelCipher do
 
   ## Options
 
-  * `:time_bits` - Time prefix bits (default: 12). Set to 0 for no time prefix. ⚠️ Cannot be changed after creation.
+  * `:time_bits` - Time prefix bits (default: 14). Set to 0 for no time prefix. ⚠️ Cannot be changed after creation.
   * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). ⚠️ Cannot be changed after creation.
   * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. ⚠️ Cannot be changed after creation.
-  * `:data_bits` - Data cipher bits (default: 40, must be even). ⚠️ Cannot be changed after creation.
+  * `:data_bits` - Data cipher bits (default: 38, must be even). ⚠️ Cannot be changed after creation.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. ⚠️ Cannot be changed after creation.
   * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32). ⚠️ Cannot be changed after creation.
   * `:functions_prefix` - Schema where cipher functions are located (default: "public"). ⚠️ Cannot be changed after creation.
@@ -418,7 +418,7 @@ defmodule FeistelCipher do
   end
 
   defp do_up_for_trigger(prefix, table, from, to, opts, name_fn) do
-    time_bits = Keyword.get(opts, :time_bits, 12)
+    time_bits = Keyword.get(opts, :time_bits, 14)
     encrypt_time = Keyword.get(opts, :encrypt_time, false)
 
     unless time_bits >= 0 do
@@ -443,7 +443,7 @@ defmodule FeistelCipher do
       raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
     end
 
-    data_bits = Keyword.get(opts, :data_bits, 40)
+    data_bits = Keyword.get(opts, :data_bits, 38)
 
     unless rem(data_bits, 2) == 0 do
       raise ArgumentError, "data_bits must be an even number, got: #{data_bits}"
@@ -572,9 +572,9 @@ defmodule FeistelCipher do
         old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
         execute FeistelCipher.up_for_legacy_trigger("public", "posts", "sequence", "external_id",
-          time_bits: 12,               # Must match original
+          time_bits: 14,               # Must match original
           time_bucket: 86400,          # Must match original
-          data_bits: 40,               # Must match original
+          data_bits: 38,               # Must match original
           key: old_key,                # Key from OLD column names
           rounds: 16,                  # Must match original
           functions_prefix: "public"   # Must match original
