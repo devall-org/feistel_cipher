@@ -886,9 +886,9 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "38"
       assert sql =~ "'seq'"
       assert sql =~ "'id'"
-      # default time_bits: 14, time_bucket: 86400
+      # default time_bits: 15, time_bucket: 86400
       # trigger params: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds
-      assert sql =~ "14"
+      assert sql =~ "15"
       assert sql =~ "86400"
     end
 
@@ -967,7 +967,7 @@ defmodule FeistelCipher.MigrationTest do
                    ~r/time_bits \+ data_bits must be <= 63 when encrypt_time is false/,
                    fn ->
                      FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
-                       time_bits: 14,
+                       time_bits: 15,
                        data_bits: 50,
                        encrypt_time: false
                      )
@@ -1036,7 +1036,10 @@ defmodule FeistelCipher.MigrationTest do
 
     test "includes encrypt_time flag in SQL" do
       sql =
-        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id", encrypt_time: true)
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
+          encrypt_time: true,
+          time_bits: 16
+        )
 
       # encrypt_time = true (5th arg: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds)
       assert sql =~ ", true, 38,"
