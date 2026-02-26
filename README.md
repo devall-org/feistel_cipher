@@ -167,7 +167,7 @@ Disable time prefix when you only need opaque IDs and don't need backup/page-loc
 
 The `up_for_trigger/5` function accepts these options:
 
-> ⚠️ **Important**: Once a trigger is created, encryption parameters cannot be changed. Changing them would break encryption consistency for existing data.
+> ⚠️ **Important**: Parameter changes should be handled as explicit migrations. Some options (like `time_bits`/`time_bucket`/`encrypt_time`) can be changed technically, but old/new IDs will use different semantics. Core cipher options (`data_bits`/`key`/`rounds`) should be treated as immutable in-place.
 
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
 - `time_bits`: Time prefix bits (default: 15). Set to 0 for no time prefix
