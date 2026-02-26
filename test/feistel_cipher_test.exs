@@ -412,7 +412,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [id, key])
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 38, $2, 16)", [id, key])
 
       [[actual]] = decrypted.rows
       assert actual == seq
@@ -431,7 +431,7 @@ defmodule FeistelCipher.MigrationTest do
 
       for [seq, id] <- result.rows do
         decrypted =
-          TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [id, key])
+          TestRepo.query!("SELECT public.feistel_cipher_v1($1, 38, $2, 16)", [id, key])
 
         [[actual]] = decrypted.rows
         assert actual == seq
@@ -458,7 +458,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 38, $2, 16)", [
           original_id,
           key
         ])
@@ -489,7 +489,7 @@ defmodule FeistelCipher.MigrationTest do
       key = FeistelCipher.generate_key("public", "test_posts", "seq", "id")
 
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 38, $2, 16)", [
           new_id,
           key
         ])
@@ -573,7 +573,7 @@ defmodule FeistelCipher.MigrationTest do
 
       # Verify id is encrypted version of seq (data_bits default: 38)
       decrypted =
-        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 40, $2, 16)", [id, key])
+        TestRepo.query!("SELECT public.feistel_cipher_v1($1, 38, $2, 16)", [id, key])
 
       [[decrypted_seq]] = decrypted.rows
       assert decrypted_seq == 42
@@ -1039,7 +1039,7 @@ defmodule FeistelCipher.MigrationTest do
         FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id", encrypt_time: true)
 
       # encrypt_time = true (5th arg: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds)
-      assert sql =~ ", true, 40,"
+      assert sql =~ ", true, 38,"
     end
   end
 
