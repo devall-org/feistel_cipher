@@ -886,10 +886,10 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "40"
       assert sql =~ "'seq'"
       assert sql =~ "'id'"
-      # default time_bits: 12, time_bucket: 3600
+      # default time_bits: 12, time_bucket: 86400
       # trigger params: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds
       assert sql =~ "12"
-      assert sql =~ "3600"
+      assert sql =~ "86400"
     end
 
     test "uses custom data_bits" do
