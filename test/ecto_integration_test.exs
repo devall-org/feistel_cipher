@@ -91,7 +91,7 @@ defmodule FeistelCipher.EctoIntegrationTest do
       seq = post.seq
       encrypted_id = post.id
 
-      # With time_bits: 14 (default), data_bits: 38 (default)
+      # With time_bits: 15 (default), data_bits: 38 (default)
       data_bits = 38
       data_mask = Bitwise.bsl(1, data_bits) - 1
       data_component = Bitwise.band(encrypted_id, data_mask)
@@ -125,8 +125,8 @@ defmodule FeistelCipher.EctoIntegrationTest do
       assert post.id != post.seq
       assert post.title == "Hello"
 
-      # Default: time_bits: 14, time_bucket: 86400, data_bits: 38
-      time_bits = 14
+      # Default: time_bits: 15, time_bucket: 86400, data_bits: 38
+      time_bits = 15
       data_bits = 38
       time_bucket = 86400
 
