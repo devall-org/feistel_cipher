@@ -153,8 +153,8 @@ With a time prefix, rows from the same time bucket land on nearby pages, so incr
 Use a time prefix when you want write locality and smaller incremental backups on large/high-write tables.
 
 - Example: `events`, `logs`, `orders`, `messages` tables that receive continuous inserts.
-- Typical config: `time_bits: 14`, `time_bucket: 86400` (daily, default) or `3600` (hourly for tighter locality windows).
-- With `time_bits: 14`, `time_bucket: 86400`, and `encrypt_time: false`, the time prefix wraps after about 44 years 10 months.
+- Typical config: `time_bits: 15`, `time_bucket: 86400` (daily, default) or `3600` (hourly for tighter locality windows).
+- With `time_bits: 15`, `time_bucket: 86400`, and `encrypt_time: false`, the time prefix wraps after about 89 years 9 months.
 
 ### When NOT to Use Time Prefix (`time_bits: 0`)
 
@@ -170,7 +170,7 @@ The `up_for_trigger/5` function accepts these options:
 > ⚠️ **Important**: Once a trigger is created, encryption parameters cannot be changed. Changing them would break encryption consistency for existing data.
 
 - `prefix`, `table`, `from`, `to`: Table and column names (required)
-- `time_bits`: Time prefix bits (default: 14). Set to 0 for no time prefix
+- `time_bits`: Time prefix bits (default: 15). Set to 0 for no time prefix
 - `time_bucket`: Time bucket size in seconds (default: `86400`)
   - Example: `86400` for 1 day (default), `3600` for 1 hour
   - Rows inserted within the same bucket share the same time prefix
@@ -239,7 +239,7 @@ defmodule MyApp.Repo.Migrations.RenamePostsColumns do
     old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
     execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
-      time_bits: 14,               # Must match original
+      time_bits: 15,               # Must match original
       time_bucket: 86400,          # Must match original
       data_bits: 38,               # Must match original
       key: old_key,                # Key from OLD column names

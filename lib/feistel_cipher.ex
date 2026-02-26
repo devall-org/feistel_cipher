@@ -321,7 +321,7 @@ defmodule FeistelCipher do
 
   ## Options
 
-  * `:time_bits` - Time prefix bits (default: 14). Set to 0 for no time prefix. ⚠️ Cannot be changed after creation.
+  * `:time_bits` - Time prefix bits (default: 15). Set to 0 for no time prefix. ⚠️ Cannot be changed after creation.
   * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). ⚠️ Cannot be changed after creation.
   * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. ⚠️ Cannot be changed after creation.
   * `:data_bits` - Data cipher bits (default: 38, must be even). ⚠️ Cannot be changed after creation.
@@ -356,7 +356,7 @@ defmodule FeistelCipher do
   end
 
   defp do_up_for_trigger(prefix, table, from, to, opts, name_fn) do
-    time_bits = Keyword.get(opts, :time_bits, 14)
+    time_bits = Keyword.get(opts, :time_bits, 15)
     encrypt_time = Keyword.get(opts, :encrypt_time, false)
 
     unless time_bits >= 0 do
@@ -510,7 +510,7 @@ defmodule FeistelCipher do
         old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
         execute FeistelCipher.up_for_legacy_trigger("public", "posts", "sequence", "external_id",
-          time_bits: 14,               # Must match original
+          time_bits: 15,               # Must match original
           time_bucket: 86400,          # Must match original
           data_bits: 38,               # Must match original
           key: old_key,                # Key from OLD column names
