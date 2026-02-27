@@ -375,16 +375,19 @@ defmodule FeistelCipher do
       end
     end
 
-    time_bucket = if use_time_prefix, do: Keyword.get(opts, :time_bucket, 86400), else: nil
-    time_offset = if use_time_prefix, do: Keyword.get(opts, :time_offset, 0), else: nil
+    effective_time_bucket =
+      if use_time_prefix, do: Keyword.get(opts, :time_bucket, 86400), else: 0
+
+    effective_time_offset = if use_time_prefix, do: Keyword.get(opts, :time_offset, 0), else: 0
 
     if use_time_prefix do
-      unless time_bucket > 0 do
-        raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
+      unless effective_time_bucket > 0 do
+        raise ArgumentError, "time_bucket must be positive, got: #{effective_time_bucket}"
       end
 
-      unless is_integer(time_offset) do
-        raise ArgumentError, "time_offset must be an integer, got: #{inspect(time_offset)}"
+      unless is_integer(effective_time_offset) do
+        raise ArgumentError,
+              "time_offset must be an integer, got: #{inspect(effective_time_offset)}"
       end
     end
 
@@ -421,7 +424,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket || 0}, #{time_offset || 0}, #{effective_encrypt_time}, #{data_bits}, #{key}, #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{effective_time_bucket}, #{effective_time_offset}, #{effective_encrypt_time}, #{data_bits}, #{key}, #{rounds});
     """
   end
 
