@@ -176,6 +176,7 @@ The `up_for_trigger/5` function accepts these options:
   - Rows inserted within the same bucket share the same time prefix
 - `time_offset`: Time offset in seconds applied before bucket calculation (default: `0`)
   - Formula: `time_value = floor((epoch + time_offset) / time_bucket)`
+  - Sign convention: positive values move the boundary earlier in local time; negative values move it later
   - Example: `time_bucket: 86400`, `time_offset: 21600` shifts daily boundary from `00:00 UTC` to `18:00 UTC` (`03:00 KST`)
   - Use this when business day boundaries differ from UTC midnight, or when multiple countries need a stable operational cutover time
 - `encrypt_time`: Whether to encrypt the time prefix with Feistel cipher (default: `false`)
@@ -204,6 +205,8 @@ The `up_for_trigger/5` function accepts these options:
 `time_bucket` alone uses UTC-based boundaries. For daily buckets, that means bucket changes at UTC midnight, which may split a local business day at an awkward hour (for example, 09:00 in Korea, or even earlier/later in other regions).
 
 `time_offset` lets you align bucket boundaries to your operational day (for example, 03:00 local cutover) without changing `time_bucket` size. This improves practical continuity for time-prefix clustering, especially when `encrypt_time: true` is enabled and the prefix itself is not human-readable.
+
+In this library, `time_offset` is added to epoch before bucketing. That is why `+21600` (not `-21600`) gives a 03:00 KST boundary for daily buckets.
 
 Example with custom options:
 ```elixir
