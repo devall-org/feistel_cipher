@@ -169,8 +169,10 @@ defmodule FeistelCipher do
         rounds       := TG_ARGV[8]::int;
 
         -- Fail fast on malformed trigger arguments instead of silently defaulting.
+        -- time_bucket and time_offset are only required when time_bits > 0.
         IF from_column IS NULL OR to_column IS NULL OR
-           time_bits IS NULL OR time_bucket IS NULL OR time_offset IS NULL OR
+           time_bits IS NULL OR
+           (time_bits > 0 AND (time_bucket IS NULL OR time_offset IS NULL)) OR
            encrypt_time IS NULL OR data_bits IS NULL OR key IS NULL OR rounds IS NULL THEN
           RAISE EXCEPTION
             'feistel_trigger_v1 misconfigured: expected 9 non-null trigger arguments, got TG_ARGV=%',
@@ -199,16 +201,19 @@ defmodule FeistelCipher do
           to_value := NULL;
         ELSE
           -- Calculate time component
-          -- When time_bits = 0: time_value & 0 = 0, so time_component = 0
-          -- and (0 << data_bits) | data_component = data_component (no time prefix)
-          time_value :=
-            floor((extract(epoch from now()) + time_offset::double precision) / time_bucket::double precision)::bigint;
-          time_value := time_value & ((1::bigint << time_bits) - 1);
-
-          IF encrypt_time AND time_bits > 0 THEN
-            time_component := #{functions_prefix}.feistel_cipher_v1(time_value, time_bits, key, rounds);
+          -- When time_bits = 0, all time-related options are effectively ignored.
+          IF time_bits = 0 THEN
+            time_component := 0;
           ELSE
-            time_component := time_value;
+            time_value :=
+              floor((extract(epoch from now()) + time_offset::double precision) / time_bucket::double precision)::bigint;
+            time_value := time_value & ((1::bigint << time_bits) - 1);
+
+            IF encrypt_time THEN
+              time_component := #{functions_prefix}.feistel_cipher_v1(time_value, time_bits, key, rounds);
+            ELSE
+              time_component := time_value;
+            END IF;
           END IF;
 
           -- Encrypt the data part using feistel cipher
@@ -327,7 +332,7 @@ defmodule FeistelCipher do
   * `:time_bits` - Time prefix bits (default: 15). Set to 0 for no time prefix. Can be changed, but should be treated as an explicit migration because old/new IDs will use different time-prefix semantics.
   * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). Can be changed, but should be treated as an explicit migration because clustering behavior changes immediately.
   * `:time_offset` - Time offset in seconds applied before bucket calculation (default: 0). For example, 21600 shifts a daily boundary from 00:00 UTC to 18:00 UTC (03:00 KST). Can be changed, but should be treated as an explicit migration because clustering behavior changes immediately.
-  * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. Can be changed, but should be treated as an explicit migration because time-prefix interpretation changes.
+  * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). This is ignored when `time_bits` is `0`. When enabled with `time_bits > 0`, time_bits must be even. Can be changed, but should be treated as an explicit migration because time-prefix interpretation changes.
   * `:data_bits` - Data cipher bits (default: 38, must be even). Should be treated as immutable in-place; changing it requires a planned migration.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. Should be treated as immutable in-place; changing it requires a planned migration.
   * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32). Should be treated as immutable in-place; changing it requires a planned migration.
@@ -362,12 +367,14 @@ defmodule FeistelCipher do
   defp do_up_for_trigger(prefix, table, from, to, opts, name_fn) do
     time_bits = Keyword.get(opts, :time_bits, 15)
     encrypt_time = Keyword.get(opts, :encrypt_time, false)
+    use_time_prefix = time_bits > 0
+    effective_encrypt_time = use_time_prefix and encrypt_time
 
     unless time_bits >= 0 do
       raise ArgumentError, "time_bits must be non-negative, got: #{time_bits}"
     end
 
-    if encrypt_time do
+    if effective_encrypt_time do
       unless time_bits >= 2 do
         raise ArgumentError,
               "time_bits must be >= 2 when encrypt_time is true, got: #{time_bits}"
@@ -379,16 +386,17 @@ defmodule FeistelCipher do
       end
     end
 
-    time_bucket = Keyword.get(opts, :time_bucket, 86400)
+    time_bucket = if use_time_prefix, do: Keyword.get(opts, :time_bucket, 86400), else: nil
+    time_offset = if use_time_prefix, do: Keyword.get(opts, :time_offset, 0), else: nil
 
-    unless time_bucket > 0 do
-      raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
-    end
+    if use_time_prefix do
+      unless time_bucket > 0 do
+        raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
+      end
 
-    time_offset = Keyword.get(opts, :time_offset, 0)
-
-    unless is_integer(time_offset) do
-      raise ArgumentError, "time_offset must be an integer, got: #{inspect(time_offset)}"
+      unless is_integer(time_offset) do
+        raise ArgumentError, "time_offset must be an integer, got: #{inspect(time_offset)}"
+      end
     end
 
     data_bits = Keyword.get(opts, :data_bits, 38)
@@ -401,11 +409,11 @@ defmodule FeistelCipher do
       raise ArgumentError, "data_bits must be non-negative, got: #{data_bits}"
     end
 
-    max_total_bits = if encrypt_time, do: 62, else: 63
+    max_total_bits = if effective_encrypt_time, do: 62, else: 63
 
     unless time_bits + data_bits <= max_total_bits do
       raise ArgumentError,
-            "time_bits + data_bits must be <= #{max_total_bits} when encrypt_time is #{encrypt_time}, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
+            "time_bits + data_bits must be <= #{max_total_bits} when encrypt_time is #{effective_encrypt_time}, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
     end
 
     rounds = Keyword.get(opts, :rounds, 16)
@@ -424,50 +432,32 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket}, #{time_offset}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket || 0}, #{time_offset || 0}, #{effective_encrypt_time}, #{data_bits}, #{key}, #{rounds});
     """
   end
 
   @doc """
-  Returns SQL to drop a trigger. **DANGEROUS OPERATION**.
-
-  The generated SQL includes a safety guard that prevents execution by default.
-  You must manually remove the `RAISE EXCEPTION` block after understanding the risks.
+  Always raises at call time to prevent accidental trigger deletion.
 
   For legitimate use cases (like column rename), use `force_down_for_legacy_trigger/4` instead.
-
-  ## Example
-
-      FeistelCipher.down_for_legacy_trigger("public", "posts", "seq", "id")
-
   """
-  @spec down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  @spec down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) :: no_return()
   def down_for_legacy_trigger(prefix, table, from, to) do
-    """
-    DO $$
-    BEGIN
-      RAISE EXCEPTION 'down_for_legacy_trigger: trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_legacy_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
-    END
-    $$;
-
-    DROP TRIGGER #{legacy_trigger_name(table, from, to)} ON #{prefix}.#{table};
-    """
+    raise "down_for_legacy_trigger: trigger deletion prevented. " <>
+            "This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. " <>
+            "Use force_down_for_legacy_trigger/4 if this is intentional (e.g., column rename). " <>
+            "See documentation for details."
   end
 
   @doc """
   Same as `down_for_legacy_trigger/4` but targets v1 trigger naming convention.
   """
-  @spec down_for_v1_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  @spec down_for_v1_trigger(String.t(), String.t(), String.t(), String.t()) :: no_return()
   def down_for_v1_trigger(prefix, table, from, to) do
-    """
-    DO $$
-    BEGIN
-      RAISE EXCEPTION 'down_for_v1_trigger: trigger deletion prevented. This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. Use force_down_for_v1_trigger/4 or force_down_for_legacy_trigger/4 if this is intentional (e.g., column rename). See documentation for details.';
-    END
-    $$;
-
-    DROP TRIGGER #{trigger_name(table, from, to)} ON #{prefix}.#{table};
-    """
+    raise "down_for_v1_trigger: trigger deletion prevented. " <>
+            "This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. " <>
+            "Use force_down_for_v1_trigger/4 if this is intentional (e.g., column rename). " <>
+            "See documentation for details."
   end
 
   @doc """
