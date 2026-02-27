@@ -202,7 +202,7 @@ The `up_for_trigger/5` function accepts these options:
 
 ### Why `time_offset` Exists
 
-`time_bucket` alone uses UTC-based boundaries. For daily buckets, that means bucket changes at UTC midnight, which may split a local business day at an awkward hour (for example, 09:00 in Korea, or even earlier/later in other regions).
+`time_bucket` alone uses UTC-based boundaries. For daily buckets, that means bucket changes at UTC midnight, which may split a local business day at awkward local times (for example, evening in the Americas or early morning in Europe).
 
 `time_offset` lets you align bucket boundaries to your operational day (for example, 03:00 local cutover) without changing `time_bucket` size. This improves practical continuity for time-prefix clustering, especially when `encrypt_time: true` is enabled and the prefix itself is not human-readable.
 
