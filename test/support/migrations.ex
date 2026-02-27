@@ -52,7 +52,7 @@ defmodule FeistelCipher.TestMigrations do
     end
 
     def down do
-      execute(FeistelCipher.force_down_for_legacy_trigger("public", "posts", "seq", "id"))
+      execute(FeistelCipher.down_for_legacy_trigger("public", "posts", "seq", "id"))
       drop(table(:posts))
     end
   end
