@@ -688,6 +688,36 @@ defmodule FeistelCipher.MigrationTest do
       assert actual_time_prefix == expected_time_value
     end
 
+    test "time prefix uses time_offset when provided" do
+      time_bits = 12
+      data_bits = 40
+      time_offset = 21_600
+      key = FeistelCipher.generate_key("public", "test_time_posts", "seq", "id")
+
+      trigger_sql =
+        FeistelCipher.up_for_legacy_trigger("public", "test_time_posts", "seq", "id",
+          time_bits: time_bits,
+          time_bucket: @time_bucket,
+          time_offset: time_offset,
+          data_bits: data_bits,
+          key: key
+        )
+
+      TestRepo.query!(trigger_sql)
+      TestRepo.query!("INSERT INTO test_time_posts (title) VALUES ('Offset Test')")
+
+      result =
+        TestRepo.query!("SELECT id, extract(epoch from now())::bigint FROM test_time_posts")
+
+      [[id, epoch_now]] = result.rows
+
+      time_mask = Bitwise.bsl(1, time_bits) - 1
+      expected_time_value = div(epoch_now + time_offset, @time_bucket) |> Bitwise.band(time_mask)
+
+      actual_time_prefix = Bitwise.bsr(id, data_bits)
+      assert actual_time_prefix == expected_time_value
+    end
+
     test "encrypt_time: true encrypts time prefix with feistel cipher" do
       time_bits = 12
       data_bits = 40
@@ -890,6 +920,7 @@ defmodule FeistelCipher.MigrationTest do
       # trigger params: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds
       assert sql =~ "15"
       assert sql =~ "86400"
+      assert sql =~ ", 0, false,"
     end
 
     test "uses custom data_bits" do
@@ -938,7 +969,7 @@ defmodule FeistelCipher.MigrationTest do
           data_bits: 0
         )
 
-      assert sql =~ ", false, 0,"
+      assert sql =~ ", 0, false, 0,"
     end
 
     test "raises when data_bits is negative" do
@@ -1016,6 +1047,12 @@ defmodule FeistelCipher.MigrationTest do
       end
     end
 
+    test "raises when time_offset is not an integer" do
+      assert_raise ArgumentError, ~r/time_offset must be an integer/, fn ->
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id", time_offset: 1.5)
+      end
+    end
+
     test "raises for invalid key" do
       assert_raise ArgumentError, ~r/key must be between 0 and 2\^31-1/, fn ->
         FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
@@ -1041,8 +1078,17 @@ defmodule FeistelCipher.MigrationTest do
           time_bits: 16
         )
 
-      # encrypt_time = true (5th arg: from, to, time_bits, time_bucket, encrypt_time, data_bits, key, rounds)
-      assert sql =~ ", true, 38,"
+      assert sql =~ ", 0, true, 38,"
+    end
+
+    test "includes time_offset in SQL" do
+      sql =
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
+          time_offset: 21_600,
+          time_bits: 12
+        )
+
+      assert sql =~ ", 21600, false, 38,"
     end
   end
 
