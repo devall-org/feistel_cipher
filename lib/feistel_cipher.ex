@@ -421,100 +421,54 @@ defmodule FeistelCipher do
   end
 
   @doc """
-  Always raises at call time to prevent accidental trigger deletion.
+  Returns SQL to drop a legacy trigger.
 
-  For legitimate use cases (like column rename), use `force_down_for_legacy_trigger/4` instead.
+  ## ⚠️ Warning
+
+  Dropping a trigger breaks encryption for the affected column pair.
+  Only use this when intentionally removing or recreating the trigger (e.g., column rename).
+
+  If recreating the trigger, you MUST use the exact same encryption parameters:
+  - **time_bits**, **time_bucket**, **encrypt_time**: Same time configuration
+  - **data_bits**: Same data bit size
+  - **key**: Same encryption key
+  - **rounds**: Same number of rounds
+  - **functions_prefix**: Same schema where cipher functions reside
+
+  For auto-generated keys, use `generate_key/4` with the **original** column names.
+
+  ## Example
+
+      # Column rename (seq -> sequence, id -> external_id)
+      def change do
+        execute FeistelCipher.down_for_legacy_trigger("public", "posts", "seq", "id")
+
+        rename table(:posts), :seq, to: :sequence
+        rename table(:posts), :id, to: :external_id
+
+        old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
+
+        execute FeistelCipher.up_for_legacy_trigger("public", "posts", "sequence", "external_id",
+          time_bits: 15,
+          time_bucket: 86400,
+          data_bits: 38,
+          key: old_key,
+          rounds: 16,
+          functions_prefix: "public"
+        )
+      end
+
   """
-  @spec down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) :: no_return()
+  @spec down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
   def down_for_legacy_trigger(prefix, table, from, to) do
-    raise "down_for_legacy_trigger: trigger deletion prevented. " <>
-            "This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. " <>
-            "Use force_down_for_legacy_trigger/4 if this is intentional (e.g., column rename). " <>
-            "See documentation for details."
+    "DROP TRIGGER #{legacy_trigger_name(table, from, to)} ON #{prefix}.#{table};"
   end
 
   @doc """
   Same as `down_for_legacy_trigger/4` but targets v1 trigger naming convention.
   """
-  @spec down_for_v1_trigger(String.t(), String.t(), String.t(), String.t()) :: no_return()
+  @spec down_for_v1_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
   def down_for_v1_trigger(prefix, table, from, to) do
-    raise "down_for_v1_trigger: trigger deletion prevented. " <>
-            "This may break the #{from} -> #{to} encryption for table #{prefix}.#{table}. " <>
-            "Use force_down_for_v1_trigger/4 if this is intentional (e.g., column rename). " <>
-            "See documentation for details."
-  end
-
-  @doc """
-  Returns SQL to drop a trigger, bypassing the safety guard.
-
-  Use this when you need to drop and recreate a trigger (e.g., column rename).
-
-  ## When You Need to Drop and Recreate a Trigger
-
-  Common scenarios requiring trigger recreation:
-  - **Column rename**: Renaming `seq` to `sequence` or `id` to `external_id`
-  - **Table rename**: Renaming `posts` to `articles`
-  - **Schema change**: Moving table to a different schema
-
-  ## ⚠️ Compatibility Warning
-
-  If recreating the trigger, you MUST use the exact same encryption parameters:
-  - **time_bits**, **time_bucket**, **encrypt_time**: Same time configuration
-  - **data_bits**: Same data bit size (e.g., 40)
-  - **key**: Same encryption key
-  - **rounds**: Same number of rounds (e.g., 16)
-  - **functions_prefix**: Same schema where cipher functions reside (e.g., "public")
-
-  If ANY of these parameters change, the 1:1 mapping breaks:
-  - **INSERT**: New records encrypt to different `id` values, causing primary key collisions
-  - **UPDATE**: Trigger detects `id` mismatch and raises exception, preventing all updates
-  - Existing encrypted `id` values become inconsistent with their `seq` values
-
-  **Safe scenarios**:
-  - All parameters match the original values (safe to rename columns/tables)
-  - Empty table with no existing encrypted data (safe to use different parameters)
-
-  **Finding original parameters**: Check your migration file where the trigger was created.
-  Look for the `up_for_legacy_trigger/5` call and its options.
-  For auto-generated keys, use `generate_key/4` with the original prefix, table, source, and target column names.
-
-  ## Examples
-
-      # Example: Column rename (seq -> sequence, id -> external_id)
-      def change do
-        # 1. Drop the old trigger
-        execute FeistelCipher.force_down_for_legacy_trigger("public", "posts", "seq", "id")
-
-        # 2. Rename columns
-        rename table(:posts), :seq, to: :sequence
-        rename table(:posts), :id, to: :external_id
-
-        # 3. Recreate trigger with SAME encryption parameters
-        # IMPORTANT: Generate key using OLD column names (seq, id)
-        old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
-
-        execute FeistelCipher.up_for_legacy_trigger("public", "posts", "sequence", "external_id",
-          time_bits: 15,               # Must match original
-          time_bucket: 86400,          # Must match original
-          data_bits: 38,               # Must match original
-          key: old_key,                # Key from OLD column names
-          rounds: 16,                  # Must match original
-          functions_prefix: "public"   # Must match original
-        )
-      end
-
-  """
-  @spec force_down_for_legacy_trigger(String.t(), String.t(), String.t(), String.t()) ::
-          String.t()
-  def force_down_for_legacy_trigger(prefix, table, from, to) do
-    "DROP TRIGGER #{legacy_trigger_name(table, from, to)} ON #{prefix}.#{table};"
-  end
-
-  @doc """
-  Same as `force_down_for_legacy_trigger/4` but targets v1 trigger naming convention.
-  """
-  @spec force_down_for_v1_trigger(String.t(), String.t(), String.t(), String.t()) :: String.t()
-  def force_down_for_v1_trigger(prefix, table, from, to) do
     "DROP TRIGGER #{trigger_name(table, from, to)} ON #{prefix}.#{table};"
   end
 

@@ -1081,10 +1081,11 @@ defmodule FeistelCipher.MigrationTest do
   end
 
   describe "down_for_legacy_trigger/4" do
-    test "raises to prevent accidental deletion" do
-      assert_raise RuntimeError, ~r/down_for_legacy_trigger.*force_down_for_legacy_trigger/, fn ->
-        FeistelCipher.down_for_legacy_trigger("public", "users", "seq", "id")
-      end
+    test "generates SQL with legacy trigger name" do
+      sql = FeistelCipher.down_for_legacy_trigger("public", "users", "seq", "id")
+
+      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"
+      refute sql =~ "v1_trigger"
     end
   end
 
@@ -1100,25 +1101,8 @@ defmodule FeistelCipher.MigrationTest do
   end
 
   describe "down_for_v1_trigger/4" do
-    test "raises to prevent accidental deletion" do
-      assert_raise RuntimeError, ~r/down_for_v1_trigger.*force_down_for_v1_trigger/, fn ->
-        FeistelCipher.down_for_v1_trigger("public", "users", "seq", "id")
-      end
-    end
-  end
-
-  describe "force_down_for_legacy_trigger/4" do
-    test "generates SQL with legacy trigger name" do
-      sql = FeistelCipher.force_down_for_legacy_trigger("public", "users", "seq", "id")
-
-      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"
-      refute sql =~ "v1_trigger"
-    end
-  end
-
-  describe "force_down_for_v1_trigger/4" do
     test "generates SQL with v1 trigger name" do
-      sql = FeistelCipher.force_down_for_v1_trigger("public", "users", "seq", "id")
+      sql = FeistelCipher.down_for_v1_trigger("public", "users", "seq", "id")
 
       assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_v1_trigger"
     end

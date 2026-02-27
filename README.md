@@ -234,7 +234,7 @@ execute FeistelCipher.up_for_trigger(
 
 ### Column Rename
 
-When renaming columns that have triggers, use `force_down_for_trigger/4` to safely drop and recreate the trigger:
+When renaming columns that have triggers, drop and recreate the trigger:
 
 ```elixir
 defmodule MyApp.Repo.Migrations.RenamePostsColumns do
@@ -242,7 +242,7 @@ defmodule MyApp.Repo.Migrations.RenamePostsColumns do
 
   def change do
     # 1. Drop the old trigger
-    execute FeistelCipher.force_down_for_trigger("public", "posts", "seq", "id")
+    execute FeistelCipher.down_for_v1_trigger("public", "posts", "seq", "id")
 
     # 2. Rename columns
     rename table(:posts), :seq, to: :sequence
@@ -252,7 +252,7 @@ defmodule MyApp.Repo.Migrations.RenamePostsColumns do
     # IMPORTANT: Generate key using OLD column names (seq, id)
     old_key = FeistelCipher.generate_key("public", "posts", "seq", "id")
 
-    execute FeistelCipher.up_for_trigger("public", "posts", "sequence", "external_id",
+    execute FeistelCipher.up_for_v1_trigger("public", "posts", "sequence", "external_id",
       time_bits: 15,               # Must match original
       time_bucket: 86400,          # Must match original
       data_bits: 38,               # Must match original
@@ -268,7 +268,7 @@ end
 - Updates will fail with exceptions
 - 1:1 mapping breaks (new inserts may produce duplicate encrypted values)
 
-> **Note**: `down_for_trigger/4` includes a safety guard (RAISE EXCEPTION) to prevent accidental deletion. For legitimate use cases like column rename, use `force_down_for_trigger/4` which bypasses the guard.
+> **⚠️ Warning**: Dropping a trigger removes encryption for that column pair. Only use this when intentionally removing or recreating the trigger.
 
 ## Alternative: Display-Only IDs
 
