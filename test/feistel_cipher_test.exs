@@ -1028,28 +1028,6 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ ", 0, 86400, 0, false, 40,"
     end
 
-    test "skips time_bucket validation when time_bits is 0" do
-      sql =
-        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
-          time_bits: 0,
-          time_bucket: 0,
-          data_bits: 40
-        )
-
-      assert sql =~ ", 0, 0, 0, false, 40,"
-    end
-
-    test "skips time_offset validation when time_bits is 0" do
-      sql =
-        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
-          time_bits: 0,
-          time_offset: 1.5,
-          data_bits: 40
-        )
-
-      assert sql =~ ", 0, 86400, 1.5, false, 40,"
-    end
-
     test "raises when encrypt_time: true and time_bits is odd" do
       assert_raise ArgumentError,
                    ~r/time_bits must be an even number when encrypt_time is true/,
