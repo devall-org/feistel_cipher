@@ -168,17 +168,6 @@ defmodule FeistelCipher do
         key          := TG_ARGV[7]::bigint;
         rounds       := TG_ARGV[8]::int;
 
-        -- Fail fast on malformed trigger arguments instead of silently defaulting.
-        -- time_bucket and time_offset are only required when time_bits > 0.
-        IF from_column IS NULL OR to_column IS NULL OR
-           time_bits IS NULL OR
-           (time_bits > 0 AND (time_bucket IS NULL OR time_offset IS NULL)) OR
-           encrypt_time IS NULL OR data_bits IS NULL OR key IS NULL OR rounds IS NULL THEN
-          RAISE EXCEPTION
-            'feistel_trigger_v1 misconfigured: expected 9 non-null trigger arguments, got TG_ARGV=%',
-            TG_ARGV;
-        END IF;
-
         -- Early return: If from_column is not modified on UPDATE, skip re-encryption.
         -- This allows manual modification of to_column if from_column remains unchanged.
         IF TG_OP = 'UPDATE' THEN
