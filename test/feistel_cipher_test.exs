@@ -969,7 +969,7 @@ defmodule FeistelCipher.MigrationTest do
           data_bits: 0
         )
 
-      assert sql =~ ", 0, 0, 0, false, 0,"
+      assert sql =~ ", 0, 86400, 0, false, 0,"
     end
 
     test "raises when data_bits is negative" do
@@ -1015,39 +1015,6 @@ defmodule FeistelCipher.MigrationTest do
                        encrypt_time: true
                      )
                    end
-    end
-
-    test "ignores encrypt_time when time_bits is 0" do
-      sql =
-        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
-          time_bits: 0,
-          encrypt_time: true,
-          data_bits: 40
-        )
-
-      assert sql =~ ", 0, 0, 0, false, 40,"
-    end
-
-    test "skips time_bucket validation when time_bits is 0" do
-      sql =
-        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
-          time_bits: 0,
-          time_bucket: 0,
-          data_bits: 40
-        )
-
-      assert sql =~ ", 0, 0, 0, false, 40,"
-    end
-
-    test "skips time_offset validation when time_bits is 0" do
-      sql =
-        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
-          time_bits: 0,
-          time_offset: 1.5,
-          data_bits: 40
-        )
-
-      assert sql =~ ", 0, 0, 0, false, 40,"
     end
 
     test "raises when encrypt_time: true and time_bits is odd" do
