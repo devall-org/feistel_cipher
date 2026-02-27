@@ -321,7 +321,7 @@ defmodule FeistelCipher do
   * `:time_bits` - Time prefix bits (default: 15). Set to 0 for no time prefix. Can be changed, but should be treated as an explicit migration because old/new IDs will use different time-prefix semantics.
   * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). Can be changed, but should be treated as an explicit migration because clustering behavior changes immediately.
   * `:time_offset` - Time offset in seconds applied before bucket calculation (default: 0). For example, 21600 shifts a daily boundary from 00:00 UTC to 18:00 UTC (03:00 KST). Can be changed, but should be treated as an explicit migration because clustering behavior changes immediately.
-  * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). This is ignored when `time_bits` is `0`. When enabled with `time_bits > 0`, time_bits must be even. Can be changed, but should be treated as an explicit migration because time-prefix interpretation changes.
+  * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. Ignored by the trigger when `time_bits` is `0`. Can be changed, but should be treated as an explicit migration because time-prefix interpretation changes.
   * `:data_bits` - Data cipher bits (default: 38, must be even). Should be treated as immutable in-place; changing it requires a planned migration.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. Should be treated as immutable in-place; changing it requires a planned migration.
   * `:rounds` - Number of Feistel rounds (default: 16, min: 1, max: 32). Should be treated as immutable in-place; changing it requires a planned migration.
@@ -357,37 +357,26 @@ defmodule FeistelCipher do
     time_bits = Keyword.get(opts, :time_bits, 15)
     encrypt_time = Keyword.get(opts, :encrypt_time, false)
     use_time_prefix = time_bits > 0
-    effective_encrypt_time = use_time_prefix and encrypt_time
 
     unless time_bits >= 0 do
       raise ArgumentError, "time_bits must be non-negative, got: #{time_bits}"
     end
 
-    if effective_encrypt_time do
-      unless time_bits >= 2 do
-        raise ArgumentError,
-              "time_bits must be >= 2 when encrypt_time is true, got: #{time_bits}"
-      end
-
-      if rem(time_bits, 2) != 0 do
-        raise ArgumentError,
-              "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
-      end
+    if encrypt_time and rem(time_bits, 2) != 0 do
+      raise ArgumentError,
+            "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
     end
 
-    effective_time_bucket =
-      if use_time_prefix, do: Keyword.get(opts, :time_bucket, 86400), else: 0
-
-    effective_time_offset = if use_time_prefix, do: Keyword.get(opts, :time_offset, 0), else: 0
+    time_bucket = Keyword.get(opts, :time_bucket, 86400)
+    time_offset = Keyword.get(opts, :time_offset, 0)
 
     if use_time_prefix do
-      unless effective_time_bucket > 0 do
-        raise ArgumentError, "time_bucket must be positive, got: #{effective_time_bucket}"
+      unless time_bucket > 0 do
+        raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
       end
 
-      unless is_integer(effective_time_offset) do
-        raise ArgumentError,
-              "time_offset must be an integer, got: #{inspect(effective_time_offset)}"
+      unless is_integer(time_offset) do
+        raise ArgumentError, "time_offset must be an integer, got: #{inspect(time_offset)}"
       end
     end
 
@@ -401,11 +390,11 @@ defmodule FeistelCipher do
       raise ArgumentError, "data_bits must be non-negative, got: #{data_bits}"
     end
 
-    max_total_bits = if effective_encrypt_time, do: 62, else: 63
+    max_total_bits = if encrypt_time, do: 62, else: 63
 
     unless time_bits + data_bits <= max_total_bits do
       raise ArgumentError,
-            "time_bits + data_bits must be <= #{max_total_bits} when encrypt_time is #{effective_encrypt_time}, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
+            "time_bits + data_bits must be <= #{max_total_bits} when encrypt_time is #{encrypt_time}, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
     end
 
     rounds = Keyword.get(opts, :rounds, 16)
@@ -424,7 +413,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{effective_time_bucket}, #{effective_time_offset}, #{effective_encrypt_time}, #{data_bits}, #{key}, #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket}, #{time_offset}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
     """
   end
 
