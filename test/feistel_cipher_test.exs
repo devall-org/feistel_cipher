@@ -969,7 +969,7 @@ defmodule FeistelCipher.MigrationTest do
           data_bits: 0
         )
 
-      assert sql =~ ", 0, 0, 0, false, 0,"
+      assert sql =~ ", 0, 86400, 0, false, 0,"
     end
 
     test "raises when data_bits is negative" do
@@ -1025,7 +1025,7 @@ defmodule FeistelCipher.MigrationTest do
           data_bits: 40
         )
 
-      assert sql =~ ", 0, 0, 0, false, 40,"
+      assert sql =~ ", 0, 86400, 0, false, 40,"
     end
 
     test "skips time_bucket validation when time_bits is 0" do
@@ -1047,7 +1047,7 @@ defmodule FeistelCipher.MigrationTest do
           data_bits: 40
         )
 
-      assert sql =~ ", 0, 0, 0, false, 40,"
+      assert sql =~ ", 0, 86400, 1.5, false, 40,"
     end
 
     test "raises when encrypt_time: true and time_bits is odd" do
