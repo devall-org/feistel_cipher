@@ -27,11 +27,11 @@ mix feistel_cipher.upgrade
 ```elixir
 def up do
   # Install v1 functions (coexist with old v0.x functions).
-  FeistelCipher.up_for_functions(functions_prefix: "public", functions_salt: YOUR_SALT)
+  FeistelCipher.up_v1_functions(functions_prefix: "public", functions_salt: YOUR_SALT)
 end
 
 def down do
-  FeistelCipher.down_for_functions(functions_prefix: "public")
+  FeistelCipher.down_v1_functions(functions_prefix: "public")
 end
 ```
 
