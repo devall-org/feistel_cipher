@@ -135,6 +135,7 @@ defmodule FeistelCipher do
         to_column    text;
         time_bits    int;
         time_bucket  bigint;
+        time_offset  bigint;
         encrypt_time boolean;
         data_bits    int;
         key          bigint;
@@ -161,17 +162,18 @@ defmodule FeistelCipher do
         to_column    := TG_ARGV[1]::text;
         time_bits    := TG_ARGV[2]::int;
         time_bucket  := TG_ARGV[3]::bigint;
-        encrypt_time := TG_ARGV[4]::boolean;
-        data_bits    := TG_ARGV[5]::int;
-        key          := TG_ARGV[6]::bigint;
-        rounds       := TG_ARGV[7]::int;
+        time_offset  := TG_ARGV[4]::bigint;
+        encrypt_time := TG_ARGV[5]::boolean;
+        data_bits    := TG_ARGV[6]::int;
+        key          := TG_ARGV[7]::bigint;
+        rounds       := TG_ARGV[8]::int;
 
         -- Fail fast on malformed trigger arguments instead of silently defaulting.
         IF from_column IS NULL OR to_column IS NULL OR
-           time_bits IS NULL OR time_bucket IS NULL OR
+           time_bits IS NULL OR time_bucket IS NULL OR time_offset IS NULL OR
            encrypt_time IS NULL OR data_bits IS NULL OR key IS NULL OR rounds IS NULL THEN
           RAISE EXCEPTION
-            'feistel_trigger_v1 misconfigured: expected 8 non-null trigger arguments, got TG_ARGV=%',
+            'feistel_trigger_v1 misconfigured: expected 9 non-null trigger arguments, got TG_ARGV=%',
             TG_ARGV;
         END IF;
 
@@ -199,7 +201,8 @@ defmodule FeistelCipher do
           -- Calculate time component
           -- When time_bits = 0: time_value & 0 = 0, so time_component = 0
           -- and (0 << data_bits) | data_component = data_component (no time prefix)
-          time_value := floor(extract(epoch from now()) / time_bucket::double precision)::bigint;
+          time_value :=
+            floor((extract(epoch from now()) + time_offset::double precision) / time_bucket::double precision)::bigint;
           time_value := time_value & ((1::bigint << time_bits) - 1);
 
           IF encrypt_time AND time_bits > 0 THEN
@@ -323,6 +326,7 @@ defmodule FeistelCipher do
 
   * `:time_bits` - Time prefix bits (default: 15). Set to 0 for no time prefix. Can be changed, but should be treated as an explicit migration because old/new IDs will use different time-prefix semantics.
   * `:time_bucket` - Time bucket size in seconds (default: 86400 = 1 day). Can be changed, but should be treated as an explicit migration because clustering behavior changes immediately.
+  * `:time_offset` - Time offset in seconds applied before bucket calculation (default: 0). For example, 21600 shifts a daily boundary from 00:00 UTC to 18:00 UTC (03:00 KST). Can be changed, but should be treated as an explicit migration because clustering behavior changes immediately.
   * `:encrypt_time` - Whether to encrypt time_bits with feistel cipher (default: false). When true, time_bits must be even. Can be changed, but should be treated as an explicit migration because time-prefix interpretation changes.
   * `:data_bits` - Data cipher bits (default: 38, must be even). Should be treated as immutable in-place; changing it requires a planned migration.
   * `:key` - Encryption key (0 to 2^31-1). Auto-generated if not provided. Should be treated as immutable in-place; changing it requires a planned migration.
@@ -381,6 +385,12 @@ defmodule FeistelCipher do
       raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
     end
 
+    time_offset = Keyword.get(opts, :time_offset, 0)
+
+    unless is_integer(time_offset) do
+      raise ArgumentError, "time_offset must be an integer, got: #{inspect(time_offset)}"
+    end
+
     data_bits = Keyword.get(opts, :data_bits, 38)
 
     unless rem(data_bits, 2) == 0 do
@@ -414,7 +424,7 @@ defmodule FeistelCipher do
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
+      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket}, #{time_offset}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
     """
   end
 
