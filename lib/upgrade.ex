@@ -70,11 +70,11 @@ if Code.ensure_loaded?(Igniter) do
             # Install v1 functions (coexist with old v0.x functions).
             # Use the SAME functions_salt from your original feistel_cipher.install migration.
             # Find it in the migration file with timestamp 19730501000000.
-            FeistelCipher.up_for_functions(functions_prefix: "#{functions_prefix}", functions_salt: :REPLACE_WITH_YOUR_SALT)
+            FeistelCipher.up_for_v1_functions(functions_prefix: "#{functions_prefix}", functions_salt: :REPLACE_WITH_YOUR_SALT)
           end
 
           def down do
-            FeistelCipher.down_for_functions(functions_prefix: "#{functions_prefix}")
+            FeistelCipher.down_for_v1_functions(functions_prefix: "#{functions_prefix}")
           end
           """
 
