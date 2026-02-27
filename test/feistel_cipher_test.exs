@@ -969,7 +969,7 @@ defmodule FeistelCipher.MigrationTest do
           data_bits: 0
         )
 
-      assert sql =~ ", 0, false, 0,"
+      assert sql =~ ", 0, 0, 0, false, 0,"
     end
 
     test "raises when data_bits is negative" do
@@ -1017,16 +1017,37 @@ defmodule FeistelCipher.MigrationTest do
                    end
     end
 
-    test "raises when encrypt_time: true and time_bits < 2" do
-      assert_raise ArgumentError,
-                   ~r/time_bits must be >= 2 when encrypt_time is true/,
-                   fn ->
-                     FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
-                       time_bits: 0,
-                       encrypt_time: true,
-                       data_bits: 40
-                     )
-                   end
+    test "ignores encrypt_time when time_bits is 0" do
+      sql =
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
+          time_bits: 0,
+          encrypt_time: true,
+          data_bits: 40
+        )
+
+      assert sql =~ ", 0, 0, 0, false, 40,"
+    end
+
+    test "skips time_bucket validation when time_bits is 0" do
+      sql =
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
+          time_bits: 0,
+          time_bucket: 0,
+          data_bits: 40
+        )
+
+      assert sql =~ ", 0, 0, 0, false, 40,"
+    end
+
+    test "skips time_offset validation when time_bits is 0" do
+      sql =
+        FeistelCipher.up_for_legacy_trigger("public", "users", "seq", "id",
+          time_bits: 0,
+          time_offset: 1.5,
+          data_bits: 40
+        )
+
+      assert sql =~ ", 0, 0, 0, false, 40,"
     end
 
     test "raises when encrypt_time: true and time_bits is odd" do
@@ -1093,13 +1114,10 @@ defmodule FeistelCipher.MigrationTest do
   end
 
   describe "down_for_legacy_trigger/4" do
-    test "generates SQL with safety guard" do
-      sql = FeistelCipher.down_for_legacy_trigger("public", "users", "seq", "id")
-
-      assert sql =~ "RAISE EXCEPTION"
-      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_trigger"
-      refute sql =~ "v1_trigger"
-      assert sql =~ "public.users"
+    test "raises to prevent accidental deletion" do
+      assert_raise RuntimeError, ~r/down_for_legacy_trigger.*force_down_for_legacy_trigger/, fn ->
+        FeistelCipher.down_for_legacy_trigger("public", "users", "seq", "id")
+      end
     end
   end
 
@@ -1115,12 +1133,10 @@ defmodule FeistelCipher.MigrationTest do
   end
 
   describe "down_for_v1_trigger/4" do
-    test "generates SQL with safety guard and v1 trigger name" do
-      sql = FeistelCipher.down_for_v1_trigger("public", "users", "seq", "id")
-
-      assert sql =~ "RAISE EXCEPTION"
-      assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_v1_trigger"
-      assert sql =~ "public.users"
+    test "raises to prevent accidental deletion" do
+      assert_raise RuntimeError, ~r/down_for_v1_trigger.*force_down_for_v1_trigger/, fn ->
+        FeistelCipher.down_for_v1_trigger("public", "users", "seq", "id")
+      end
     end
   end
 
