@@ -1,16 +1,11 @@
 name: Elixir CI
 
-# Define workflow that runs when changes are pushed to the
-# `main` branch or pushed to a PR branch that targets the `main`
-# branch. Change the branch name if your project uses a
-# different name for the main branch like "master" or "production".
 on:
   push:
-    branches: ["main"] # adapt branch for project
+    branches: ["main"]
   pull_request:
-    branches: ["main"] # adapt branch for project
+    branches: ["main"]
 
-# Sets the ENV `MIX_ENV` to `test` for running tests
 env:
   MIX_ENV: test
 
@@ -19,101 +14,80 @@ permissions:
 
 jobs:
   test:
-    # Set up a Postgres DB service. By default, Phoenix applications
-    # use Postgres. This creates a database for running tests.
-    # Additional services can be defined here if required.
+    name: OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     services:
       db:
-        image: postgres:12
-        ports: ["5432:5432"]
+        image: postgres:17
+        ports:
+          - "5432:5432"
         env:
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: feistel_cipher_test
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
-    runs-on: ubuntu-latest
-    name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
-      # Specify the OTP and Elixir versions to use when building
-      # and running the workflow steps.
+      fail-fast: false
       matrix:
-        otp: ["27.0.0.0"] # Define the OTP version [required]
-        elixir: ["1.18.0"] # Define the elixir version [required]
+        include:
+          - otp: "27.0"
+            elixir: "1.17.3"
+          - otp: "28.2"
+            elixir: "1.19.4"
+
     steps:
-      # Step: Identity Elixir + Erlang image as the base.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
-          otp-version: ${{matrix.otp}}
-          elixir-version: ${{matrix.elixir}}
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
 
-      # Step: Check out the code.
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # Step: Define how to cache deps. Restores existing cache if present.
-      - name: Cache deps
-        id: cache-deps
-        uses: actions/cache@v3
-        env:
-          cache-name: cache-elixir-deps
+      - name: Cache dependencies
+        uses: actions/cache@v4
         with:
           path: deps
-          key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
+          key: deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-${{ env.cache-name }}-
+            deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
+            deps-${{ runner.os }}-
 
-      # Step: Define how to cache the `_build` directory. After the first run,
-      # this speeds up tests runs a lot. This includes not re-compiling our
-      # project's downloaded deps every run.
-      - name: Cache compiled build
-        id: cache-build
-        uses: actions/cache@v3
-        env:
-          cache-name: cache-compiled-build
+      - name: Cache build artifacts
+        uses: actions/cache@v4
         with:
           path: _build
-          key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
+          key: build-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-${{ env.cache-name }}-
-            ${{ runner.os }}-mix-
+            build-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
+            build-${{ runner.os }}-
 
-      # Step: Conditionally bust the cache when job is re-run.
-      # Sometimes, we may have issues with incremental builds that are fixed by
-      # doing a full recompile. In order to not waste dev time on such trivial
-      # issues (while also reaping the time savings of incremental builds for
-      # *most* day-to-day development), force a full recompile only on builds
-      # that are retried.
-      - name: Clean to rule out incremental build as a source of flakiness
-        if: github.run_attempt != '1'
-        run: |
-          mix deps.clean --all
-          mix clean
-        shell: sh
-
-      # Step: Download project dependencies. If unchanged, uses
-      # the cached version.
       - name: Install dependencies
         run: mix deps.get
 
-      # Step: Compile the project treating any warnings as errors.
-      # Customize this step if a different behavior is desired.
-      - name: Compiles without warnings
-        run: mix compile --warnings-as-errors
+      - name: Compile dependencies
+        run: mix deps.compile
 
-      # Step: Check that the checked in code has already been formatted.
-      # This step fails if something was found unformatted.
-      # Customize this step as desired.
-      - name: Check Formatting
+      - name: Check formatting
         run: mix format --check-formatted
 
-      # Step: Create the test database
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+
       - name: Create test database
         run: mix ecto.create
 
-      # Step: Execute the tests.
-      - name: Run tests
+      - name: Run test suite
         run: mix test
+
+      - name: Run benchmark smoke
+        if: matrix.elixir == '1.19.4' && matrix.otp == '28.2'
+        run: mix run benchmark/rounds_benchmark.exs
