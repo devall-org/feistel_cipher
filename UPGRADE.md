@@ -8,9 +8,12 @@ v0.14.0/v0.15.0 → v1.0.0 is **fully backward compatible** when using `time_bit
 
 - **PG function names**: `feistel_cipher` → `feistel_cipher_v1`, `feistel_column_trigger` → `feistel_trigger_v1`. Old functions are left untouched so they coexist during upgrade.
 - **`bits` option renamed to `data_bits`** (default changed from 52 to 38)
-- **New `time_bits` option** (default: 15) for time-based prefix. Use `time_bits: 0` to keep the old behavior.
-- **`time_offset` option removed**
-- **New options**: `time_bucket` (default: 86400), `encrypt_time` (default: false)
+- **New time-related options in v1**:
+  - `time_bits` (default: `15`) for time-based prefix
+  - `time_bucket` (default: `86400`)
+  - `time_offset` (default: `0`)
+  - `encrypt_time` (default: `false`)
+  - Use `time_bits: 0` to keep the old behavior
 
 ### Steps
 

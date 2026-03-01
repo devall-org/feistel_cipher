@@ -54,11 +54,13 @@ mix deps.get
 mix feistel_cipher.install
 ```
 
+> ⚠️ `mix feistel_cipher.install` is provided by Igniter. If your project does not use Igniter, create a migration manually and call `FeistelCipher.up_v1_functions/1` in `up` and `FeistelCipher.down_v1_functions/1` in `down`.
+
 ### Installation Options
 
 Both methods support the following options:
 
-* `--repo` or `-r`: Specify an Ecto repo (required for manual installation)
+* `--repo` or `-r`: Specify an Ecto repo (optional if auto-detection finds one)
 * `--functions-prefix` or `-p`: PostgreSQL schema prefix (default: `public`)
 * `--functions-salt` or `-s`: Cipher salt constant, max 2^31-1 (default: randomly generated)
 
@@ -166,11 +168,13 @@ Disable time prefix when you only need opaque IDs and don't need backup/page-loc
 
 ## Trigger Options
 
-The `up_for_v1_trigger/5` function accepts these options:
+`up_for_v1_trigger/5` takes 4 positional arguments and an options keyword list:
+
+- Positional arguments: `prefix`, `table`, `from`, `to`
+- Options:
 
 > ⚠️ **Important**: Parameter changes should be handled as explicit migrations. Some options (like `time_bits`/`time_bucket`/`encrypt_time`) can be changed technically, but old/new IDs will use different semantics. Core cipher options (`data_bits`/`key`/`rounds`) should be treated as immutable in-place.
 
-- `prefix`, `table`, `from`, `to`: Table and column names (required)
 - `time_bits`: Time prefix bits (default: 15). Set to 0 for no time prefix
 - `time_bucket`: Time bucket size in seconds (default: `86400`)
   - Example: `86400` for 1 day (default), `3600` for 1 hour
@@ -186,6 +190,7 @@ The `up_for_v1_trigger/5` function accepts these options:
 - `data_bits`: Data cipher bits (default: 38, must be even)
   - **Choose different sizes per column**: Unlike UUIDs (fixed 16 bytes), tailor each column's ID length
   - Example: User ID = 32 bits (~4B values), Post ID = 40 bits (~1T values)
+  - Input values in `from` must fit this range (`0..2^data_bits-1`), or INSERT/UPDATE fails with a database error
 - `rounds`: Number of Feistel rounds (default: 16, min: 1, max: 32)
   - **Default 16** provides good security/performance balance
   - **Note**: Diagrams and proofs in this README use 2 rounds for simplicity
@@ -333,6 +338,10 @@ Encrypting 100,000 sequential values:
 ```bash
 MIX_ENV=test mix run benchmark/rounds_benchmark.exs
 ```
+
+Prerequisites:
+- Local PostgreSQL reachable at the `config/test.exs` settings (`username: postgres`, `password: postgres`, `database: feistel_cipher_test`)
+- Database/user created before running the benchmark command
 
 The benchmark encrypts 100,000 sequential values (1 to 100,000) using a SQL batch function to minimize overhead and measure pure encryption performance.
 
