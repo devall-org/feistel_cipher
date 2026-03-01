@@ -12,17 +12,18 @@ Encrypted integer IDs using Feistel cipher
 - Total record counts are exposed
 
 **Common Solutions & Issues**:
-- **UUIDs/Random integers**: Generate different IDs on every seed run, making dev/staging environments inconsistent
-- **UUIDs**: Fixed 16 bytes (36 characters) - too long for URLs (`/posts/550e8400-e29b-41d4-a716-446655440000`)
-- **Random integers**: Collision risks, complex generation logic
+- **UUIDs**: Strong uniqueness, but values differ across seed runs and are often too long for URLs (`/posts/550e8400-e29b-41d4-a716-446655440000`)
+- **Random integers**: Shorter than UUIDs, but introduce collision risk and extra generation complexity
 
 **This Library's Approach**:
 - Store sequential integers internally
 - Expose encrypted integers externally (non-sequential, unpredictable)
-- Deterministic encryption: same insertion order always produces same encrypted ID (consistent seed data)
+- Deterministic cipher core: the same `seq` value always maps to the same encrypted data component
 - Automatic encryption via database trigger
 - Adjustable bit size per column
 - **Time-based prefix** for PostgreSQL incremental backup optimization
+
+> If you need fully stable IDs across seed runs/environments, use `time_bits: 0` so IDs are generated from the ciphered data component only.
 
 ## Installation
 
@@ -133,7 +134,7 @@ The generated ID has the structure `[time_bits | data_bits]`:
 ```
 ┌─────────────────┬──────────────────────────────────────────┐
 │   time_bits     │              data_bits                   │
-│   (12 bits)     │              (40 bits)                   │
+│   (15 bits)     │              (38 bits)                   │
 │   time prefix   │     feistel_cipher_v1(seq)               │
 └─────────────────┴──────────────────────────────────────────┘
 ```
