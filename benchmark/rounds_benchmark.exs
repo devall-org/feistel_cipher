@@ -20,7 +20,7 @@ DECLARE
   result bigint;
 BEGIN
   FOR i IN start_val..end_val LOOP
-    result := public.feistel_cipher(i, bits, key, rounds);
+    result := public.feistel_cipher_v1(i, bits, key, rounds);
   END LOOP;
   RETURN result;
 END;
