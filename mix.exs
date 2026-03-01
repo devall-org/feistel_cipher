@@ -16,7 +16,7 @@ defmodule FeistelCipher.MixProject do
       homepage_url: "https://github.com/devall-org/feistel_cipher",
       docs: [
         main: "readme",
-        extras: ["README.md"],
+        extras: ["README.md", "UPGRADE.md"],
         assets: %{"assets" => "assets"},
         before_closing_body_tag: fn
           :html ->
