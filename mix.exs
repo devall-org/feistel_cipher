@@ -16,7 +16,7 @@ defmodule FeistelCipher.MixProject do
       homepage_url: "https://github.com/devall-org/feistel_cipher",
       docs: [
         main: "readme",
-        extras: ["README.md", "UPGRADE.md"],
+        extras: ["README.md", "UPGRADE.md", "CHANGELOG.md"],
         assets: %{"assets" => "assets"},
         before_closing_body_tag: fn
           :html ->
@@ -68,7 +68,7 @@ defmodule FeistelCipher.MixProject do
       links: %{
         "GitHub" => "https://github.com/devall-org/feistel_cipher"
       },
-      files: ~w(lib mix.exs README.md UPGRADE.md LICENSE assets)
+      files: ~w(lib mix.exs README.md UPGRADE.md CHANGELOG.md LICENSE assets)
     ]
   end
 end
