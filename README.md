@@ -44,7 +44,7 @@ mix igniter.install feistel_cipher
 ```elixir
 # mix.exs
 def deps do
-  [{:feistel_cipher, "~> 1.0"}]
+  [{:feistel_cipher, "~> 1.1"}]
 end
 ```
 
@@ -128,6 +128,33 @@ Now when you insert a record, `seq` auto-increments and the trigger automaticall
 ```
 
 **Security Note**: Keep `seq` internal. Only expose `id` in APIs to prevent enumeration attacks.
+
+## Backfilling Existing Rows
+
+When you add a new encrypted column to a table that already has data, use
+`backfill_for_v1_column/5` to fill rows that were inserted before the trigger
+existed.
+
+```elixir
+def up do
+  alter table(:posts) do
+    add :public_id, :bigint, default: -1
+  end
+
+  execute FeistelCipher.up_for_v1_trigger("public", "posts", "seq", "public_id",
+    time_bits: 0,
+    data_bits: 32
+  )
+
+  execute FeistelCipher.backfill_for_v1_column("public", "posts", "seq", "public_id",
+    time_bits: 0,
+    data_bits: 32
+  )
+end
+```
+
+Backfill uses an internal sentinel value of `-1`, which is safe because
+FeistelCipher only emits non-negative integers.
 
 ## ID Structure
 

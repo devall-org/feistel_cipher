@@ -1107,4 +1107,35 @@ defmodule FeistelCipher.MigrationTest do
       assert sql =~ "DROP TRIGGER users_encrypt_seq_to_id_v1_trigger"
     end
   end
+
+  describe "backfill_for_v1_column/5" do
+    test "generates SQL that updates null target rows only" do
+      sql = FeistelCipher.backfill_for_v1_column("public", "users", "seq", "id")
+
+      assert sql =~ "UPDATE public.users"
+      assert sql =~ "SET id ="
+      assert sql =~ "WHERE id IS NULL OR id = -1"
+      assert sql =~ "public.feistel_cipher_v1(seq, 38,"
+    end
+
+    test "includes encrypted time component when configured" do
+      sql =
+        FeistelCipher.backfill_for_v1_column("public", "users", "seq", "id",
+          time_bits: 14,
+          time_bucket: 86_400,
+          time_offset: 21_600,
+          encrypt_time: true,
+          data_bits: 38,
+          key: 12_345,
+          rounds: 8,
+          functions_prefix: "crypto"
+        )
+
+      assert sql =~
+               "crypto.feistel_cipher_v1((floor((extract(epoch from now()) + 21600::double precision) / 86400::double precision)::bigint & ((1::bigint << 14) - 1)), 14, 12345, 8)"
+
+      assert sql =~ "<< 38"
+      assert sql =~ "crypto.feistel_cipher_v1(seq, 38, 12345, 8)"
+    end
+  end
 end

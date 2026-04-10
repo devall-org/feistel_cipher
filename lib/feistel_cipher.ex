@@ -25,6 +25,8 @@ defmodule FeistelCipher do
 
   use Ecto.Migration
 
+  @backfill_sentinel -1
+
   @doc """
   Generates a cryptographically secure random salt for the Feistel cipher.
 
@@ -357,66 +359,40 @@ defmodule FeistelCipher do
   end
 
   defp do_up_for_trigger(prefix, table, from, to, opts, name_fn) do
-    time_bits = Keyword.get(opts, :time_bits, 15)
-    encrypt_time = Keyword.get(opts, :encrypt_time, false)
-    use_time_prefix = time_bits > 0
-
-    unless time_bits >= 0 do
-      raise ArgumentError, "time_bits must be non-negative, got: #{time_bits}"
-    end
-
-    if encrypt_time and rem(time_bits, 2) != 0 do
-      raise ArgumentError,
-            "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
-    end
-
-    time_bucket = Keyword.get(opts, :time_bucket, 86400)
-    time_offset = Keyword.get(opts, :time_offset, 0)
-
-    if use_time_prefix do
-      unless time_bucket > 0 do
-        raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
-      end
-
-      unless is_integer(time_offset) do
-        raise ArgumentError, "time_offset must be an integer, got: #{inspect(time_offset)}"
-      end
-    end
-
-    data_bits = Keyword.get(opts, :data_bits, 38)
-
-    unless rem(data_bits, 2) == 0 do
-      raise ArgumentError, "data_bits must be an even number, got: #{data_bits}"
-    end
-
-    unless data_bits >= 0 do
-      raise ArgumentError, "data_bits must be non-negative, got: #{data_bits}"
-    end
-
-    max_total_bits = if encrypt_time, do: 62, else: 63
-
-    unless time_bits + data_bits <= max_total_bits do
-      raise ArgumentError,
-            "time_bits + data_bits must be <= #{max_total_bits} when encrypt_time is #{encrypt_time}, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
-    end
-
-    rounds = Keyword.get(opts, :rounds, 16)
-
-    unless rounds >= 1 and rounds <= 32 do
-      raise ArgumentError, "rounds must be between 1 and 32, got: #{rounds}"
-    end
-
-    key = Keyword.get(opts, :key) || generate_key(prefix, table, from, to)
-    validate_key!(key, "key")
-
-    functions_prefix = Keyword.get(opts, :functions_prefix, "public")
+    resolved_opts = resolve_cipher_options(prefix, table, from, to, opts)
 
     """
     CREATE TRIGGER #{name_fn.(table, from, to)}
       BEFORE INSERT OR UPDATE
       ON #{prefix}.#{table}
       FOR EACH ROW
-      EXECUTE PROCEDURE #{functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{time_bits}, #{time_bucket}, #{time_offset}, #{encrypt_time}, #{data_bits}, #{key}, #{rounds});
+      EXECUTE PROCEDURE #{resolved_opts.functions_prefix}.feistel_trigger_v1('#{from}', '#{to}', #{resolved_opts.time_bits}, #{resolved_opts.time_bucket}, #{resolved_opts.time_offset}, #{resolved_opts.encrypt_time}, #{resolved_opts.data_bits}, #{resolved_opts.key}, #{resolved_opts.rounds});
+    """
+  end
+
+  @doc """
+  Returns SQL to backfill a v1 encrypted column for existing rows.
+
+  This is useful when adding a new encrypted column to a table that already has data.
+  New rows will be handled by the trigger, and this statement fills only rows where
+  the encrypted target column is currently `NULL`.
+
+  It uses the same encryption rules as `up_for_v1_trigger/5`, so you should pass the
+  exact same options used by the trigger.
+  """
+  @spec backfill_for_v1_column(String.t(), String.t(), String.t(), String.t(), keyword()) ::
+          String.t()
+  def backfill_for_v1_column(prefix, table, from, to, opts \\ []) when is_list(opts) do
+    resolved_opts = resolve_cipher_options(prefix, table, from, to, opts)
+
+    """
+    UPDATE #{prefix}.#{table}
+    SET #{to} =
+      CASE
+        WHEN #{from} IS NULL THEN NULL
+        ELSE #{encrypted_value_sql(from, resolved_opts)}
+      END
+    WHERE #{backfill_condition_sql(to)};
     """
   end
 
@@ -501,6 +477,97 @@ defmodule FeistelCipher do
 
   defp legacy_trigger_name(table, from, to) do
     "#{table}_encrypt_#{from}_to_#{to}_trigger"
+  end
+
+  defp encrypted_value_sql(from, resolved_opts) do
+    data_component_sql =
+      "#{resolved_opts.functions_prefix}.feistel_cipher_v1(#{from}, #{resolved_opts.data_bits}, #{resolved_opts.key}, #{resolved_opts.rounds})"
+
+    "(#{time_component_sql(resolved_opts)} << #{resolved_opts.data_bits}) | #{data_component_sql}"
+  end
+
+  defp time_component_sql(%{time_bits: 0}) do
+    "0"
+  end
+
+  defp time_component_sql(resolved_opts) do
+    time_value_sql =
+      "(floor((extract(epoch from now()) + #{resolved_opts.time_offset}::double precision) / #{resolved_opts.time_bucket}::double precision)::bigint & ((1::bigint << #{resolved_opts.time_bits}) - 1))"
+
+    if resolved_opts.encrypt_time do
+      "#{resolved_opts.functions_prefix}.feistel_cipher_v1(#{time_value_sql}, #{resolved_opts.time_bits}, #{resolved_opts.key}, #{resolved_opts.rounds})"
+    else
+      time_value_sql
+    end
+  end
+
+  defp backfill_condition_sql(to) do
+    "#{to} IS NULL OR #{to} = #{@backfill_sentinel}"
+  end
+
+  defp resolve_cipher_options(prefix, table, from, to, opts) do
+    time_bits = Keyword.get(opts, :time_bits, 15)
+    encrypt_time = Keyword.get(opts, :encrypt_time, false)
+    use_time_prefix = time_bits > 0
+
+    unless time_bits >= 0 do
+      raise ArgumentError, "time_bits must be non-negative, got: #{time_bits}"
+    end
+
+    if encrypt_time and rem(time_bits, 2) != 0 do
+      raise ArgumentError,
+            "time_bits must be an even number when encrypt_time is true, got: #{time_bits}"
+    end
+
+    time_bucket = Keyword.get(opts, :time_bucket, 86400)
+    time_offset = Keyword.get(opts, :time_offset, 0)
+
+    if use_time_prefix do
+      unless time_bucket > 0 do
+        raise ArgumentError, "time_bucket must be positive, got: #{time_bucket}"
+      end
+
+      unless is_integer(time_offset) do
+        raise ArgumentError, "time_offset must be an integer, got: #{inspect(time_offset)}"
+      end
+    end
+
+    data_bits = Keyword.get(opts, :data_bits, 38)
+
+    unless rem(data_bits, 2) == 0 do
+      raise ArgumentError, "data_bits must be an even number, got: #{data_bits}"
+    end
+
+    unless data_bits >= 0 do
+      raise ArgumentError, "data_bits must be non-negative, got: #{data_bits}"
+    end
+
+    max_total_bits = if encrypt_time, do: 62, else: 63
+
+    unless time_bits + data_bits <= max_total_bits do
+      raise ArgumentError,
+            "time_bits + data_bits must be <= #{max_total_bits} when encrypt_time is #{encrypt_time}, got: #{time_bits} + #{data_bits} = #{time_bits + data_bits}"
+    end
+
+    rounds = Keyword.get(opts, :rounds, 16)
+
+    unless rounds >= 1 and rounds <= 32 do
+      raise ArgumentError, "rounds must be between 1 and 32, got: #{rounds}"
+    end
+
+    key = Keyword.get(opts, :key) || generate_key(prefix, table, from, to)
+    validate_key!(key, "key")
+
+    %{
+      time_bits: time_bits,
+      time_bucket: time_bucket,
+      time_offset: time_offset,
+      encrypt_time: encrypt_time,
+      data_bits: data_bits,
+      key: key,
+      rounds: rounds,
+      functions_prefix: Keyword.get(opts, :functions_prefix, "public")
+    }
   end
 
   defp validate_key!(key, name) do
