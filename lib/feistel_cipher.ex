@@ -28,6 +28,18 @@ defmodule FeistelCipher do
   @backfill_sentinel -1
 
   @doc """
+  Returns the sentinel value stored in an encrypted column to mark rows that
+  have not been encrypted yet.
+
+  Newly inserted rows carry this value until the trigger overwrites it, and
+  `backfill_for_v1_column/5` targets rows whose column is NULL or equals this
+  sentinel. Cipher output is always non-negative, so the sentinel can never
+  collide with a real encrypted value.
+  """
+  @spec backfill_sentinel() :: integer()
+  def backfill_sentinel, do: @backfill_sentinel
+
+  @doc """
   Generates a cryptographically secure random salt for the Feistel cipher.
 
   Returns a random integer between 0 and 2^31-1.

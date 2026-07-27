@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- Added `FeistelCipher.backfill_sentinel/0` exposing the sentinel value (`-1`) that marks not-yet-encrypted rows for triggers and backfill.
+
 ## 1.1.0
 
 - Added `backfill_for_v1_column/5` for filling encrypted columns on existing rows.
